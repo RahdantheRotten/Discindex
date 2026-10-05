@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://rahdantherotten.github.io/discindex/sitemap.xml
+Sitemap: https://rahdantherotten.github.io/Discindex/sitemap.xml
