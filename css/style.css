@@ -5,6 +5,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; }
 button { font: inherit; cursor: pointer; color: inherit; }
@@ -139,17 +140,6 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* phone */
-@media (max-width: 700px) {
-  header { padding: 12px 16px; } main { padding: 16px; }
-  .search { order: 3; flex-basis: 100%; max-width: none; }
-  .menu { top: 110px; right: 16px; }
-  .grid { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
-  .album { grid-template-columns: 1fr; gap: 20px; }
-  h1 { font-size: 24px; }
-  .list .wide { display: none; }
-  .list td, .list th { padding: 8px 6px; }
-  .colsearch { min-width: 0; }
-}
 .intro { list-style: none; padding: 0; margin: 24px auto; max-width: 520px; text-align: left; }
 .intro li { padding: 10px 14px; margin-bottom: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
 .empty .hint { max-width: 520px; margin: 0 auto 24px; }
@@ -179,3 +169,91 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
 .sync { font-size: 13px; color: var(--muted); }
 .genre-filter { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); max-width: 200px; }
 .genre-filter.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* floating add button (phones only) */
+.fab { display: none; }
+
+/* ---------- phones (iPhone etc.) ---------- */
+@media (max-width: 700px) {
+  header { padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); gap: 10px; }
+  .logo { font-size: 20px; }
+  .add-top { display: none; }
+  #signInBtn { margin-left: auto; padding: 7px 12px; }
+  .avatar { margin-left: auto; }
+  .icon-btn { width: 40px; height: 40px; font-size: 22px; }
+  .search { order: 3; flex-basis: 100%; max-width: none; margin: 0; }
+  main { padding: 14px 16px; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .menu { top: calc(60px + env(safe-area-inset-top)); right: 12px; left: 12px; }
+  .menu > * { padding: 13px 14px; }
+
+  /* iPhone zooms into text boxes under 16px, so everything you can type in is 16px */
+  input, select, textarea, .colsearch, .search, .toolbar select, .genre-filter { font-size: 16px; }
+
+  /* toolbar: two neat rows */
+  .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 14px; }
+  .toolbar > .tools:first-child { grid-column: 1 / -1; justify-content: space-between; }
+  .toolbar > .tools:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+  .toolbar .lbl-txt { display: none; }
+  .genre-filter, .sort-lbl select { width: 100%; max-width: none; padding: 8px 10px; }
+  .sort-lbl { display: block; min-width: 0; }
+  .viewswitch button { padding: 6px 12px; font-size: 16px; }
+  #count { font-size: 14px; color: var(--muted); font-weight: 500; }
+
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 18px 14px; }
+  .item:hover .cover { transform: none; }
+  .item:active .cover { transform: scale(.97); }
+
+  /* list + songs: tables become tidy rows: cover | title + artist | length */
+  .list, .list thead, .list tbody { display: block; }
+  .list { border-radius: 10px; overflow: hidden; }
+  .list thead tr { display: flex; gap: 6px; overflow-x: auto; padding: 8px; border-bottom: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .list thead tr::-webkit-scrollbar { display: none; }
+  .list thead th { padding: 0; border: 0; flex: 0 0 auto; display: block; }
+  .list thead th:first-child { display: none; }
+  .list .colsearch { width: 120px; max-width: none; padding: 6px 10px; text-align: left; }
+  .list tbody tr { display: grid; grid-template-columns: 48px 1fr auto; column-gap: 12px; row-gap: 1px;
+    align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .list tbody tr:last-child { border-bottom: 0; }
+  .list tbody tr[hidden] { display: none; }
+  .list td { padding: 0; border: 0; min-width: 0; }
+  .list td:first-child { grid-row: 1 / span 2; }
+  .list .thumb, .list .thumb.sm { width: 48px; height: 48px; }
+  .list td.t { grid-column: 2; grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list td:nth-child(3) { grid-column: 2; grid-row: 2; color: var(--muted); font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list tbody .wide { display: none; }
+  .list td.r { grid-column: 3; grid-row: 1; }
+  #list td:nth-child(4) { grid-column: 3; grid-row: 2; text-align: right; font-size: 13px; }
+  #list tbody td.r.wide { display: block; }
+  .list .nomatch { display: block; }
+  .list .nomatch td { display: block; }
+
+  /* album page */
+  .album { grid-template-columns: 1fr; gap: 18px; }
+  .bigcover { max-width: 320px; margin: 0 auto; display: block; }
+  h1 { font-size: 24px; }
+  .artist { font-size: 17px; }
+  .box dl { grid-template-columns: 100px 1fr; }
+  .actions .btn { flex: 1 1 auto; text-align: center; padding: 11px 14px; }
+
+  /* add page */
+  .ibtn { width: 46px; height: 46px; }
+  .icons-legend { gap: 6px 14px; font-size: 13px; }
+  .ver { grid-template-columns: 48px 1fr auto; gap: 12px; padding: 10px; }
+  .ver img { width: 48px; height: 48px; }
+  #versAdd { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); width: 100%; padding: 13px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+
+  /* sign-in window slides up from the bottom like an iPhone sheet */
+  .modal-bg { align-items: flex-end; padding: 0; }
+  .modal { max-width: none; border-radius: 16px 16px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); }
+
+  .toast { bottom: calc(90px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); text-align: center; }
+
+  .fab { display: flex; position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 15;
+    width: 60px; height: 60px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 34px; font-weight: 300;
+    align-items: center; justify-content: center; text-decoration: none; box-shadow: 0 6px 18px rgba(194,65,12,.4); line-height: 1; }
+  .fab:active { transform: scale(.94); }
+  body[data-page="add"] .fab, body[data-page="settings"] .fab, body[data-page="versions"] .fab, body[data-page="empty"] .fab { display: none; }
+}

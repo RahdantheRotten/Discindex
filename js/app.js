@@ -30,6 +30,7 @@ function toast(msg) {
 // ---------- page switching ----------
 
 function show(page) {
+  document.body.dataset.page = page;
   document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
   if (page !== "add") stopScanner();
   window.scrollTo(0, 0);

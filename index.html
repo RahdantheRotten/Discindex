@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Discindex">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Discindex: organize your CD collection</title>
 <meta name="description" content="Discindex is a free website to organize your CD collection. Scan barcodes, search Discogs, import your Discogs collection, and browse your albums and songs with covers, tracklists and song lengths.">
 <meta name="keywords" content="Discindex, CD collection, music collection, Discogs, barcode scanner, album organizer, tracklist">
@@ -11,7 +17,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://discindex.pages.dev/">
 <link rel="canonical" href="https://discindex.pages.dev/">
-<meta name="theme-color" content="#C2410C">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%231C1C1E'/><circle cx='50' cy='50' r='14' fill='%23C2410C'/></svg>">
 <link rel="stylesheet" href="css/style.css">
 <!-- barcode scanner library -->
@@ -22,7 +28,7 @@
 <header>
   <a class="logo" href="#/">●&nbsp;Disc<span>index</span></a>
   <input class="search" id="globalSearch" placeholder="Search your collection…" autocomplete="off">
-  <a class="btn" href="#/add">+ Add CD</a>
+  <a class="btn add-top" href="#/add">+ Add CD</a>
   <button class="btn ghost" id="signInBtn" hidden>Sign in</button>
   <button class="avatar" id="avatarBtn" hidden title="Account"></button>
   <button class="icon-btn" id="gear" title="Settings">⚙</button>
@@ -70,13 +76,13 @@
       </div>
       <div class="tools">
         <select id="genreFilter" class="genre-filter" title="Filter by genre or style"></select>
-        <label>Sort: <select id="sort">
+        <label class="sort-lbl"><span class="lbl-txt">Sort: </span><select id="sort">
           <option value="added">Date added</option><option value="artist">Artist</option>
           <option value="title">Title</option><option value="year">Year</option>
         </select></label>
         <div class="viewswitch" id="layoutswitch">
-          <button data-view="grid" title="Grid view">▦ Grid</button>
-          <button data-view="list" title="List view">☰ List</button>
+          <button data-view="grid" title="Grid view">▦<span class="lbl-txt"> Grid</span></button>
+          <button data-view="list" title="List view">☰<span class="lbl-txt"> List</span></button>
         </div>
       </div>
     </div>
@@ -215,6 +221,7 @@
   </section>
 </main>
 
+<a class="fab" href="#/add" aria-label="Add CD" title="Add CD">+</a>
 <div class="toast" id="toast" hidden></div>
 
 <script type="module" src="js/app.js"></script>

@@ -27,7 +27,15 @@ export async function onUserChange(cb) {
 
 export async function signInGoogle() {
   const { auth, A } = await init();
-  await A.signInWithPopup(auth, new A.GoogleAuthProvider());
+  const provider = new A.GoogleAuthProvider();
+  try {
+    await A.signInWithPopup(auth, provider);
+  } catch (e) {
+    // iPhone home-screen apps and some browsers can't open the Google pop-up: use a full-page redirect instead
+    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request"].includes(e?.code))
+      return A.signInWithRedirect(auth, provider);
+    throw e;
+  }
 }
 export async function signInEmail(email, pw) {
   const { auth, A } = await init();
