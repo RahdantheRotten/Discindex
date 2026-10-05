@@ -177,3 +177,5 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
 .auth-links { text-align: center; margin-bottom: 0; }
 #authMsg:empty { display: none; }
 .sync { font-size: 13px; color: var(--muted); }
+.genre-filter { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); max-width: 200px; }
+.genre-filter.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }

@@ -10,7 +10,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let items = store.loadCollection();
 let settings = store.loadSettings();
-const ui = Object.assign({ mode: "albums", layout: "grid", sort: "added" }, settings.ui);
+const ui = Object.assign({ mode: "albums", layout: "grid", sort: "added", genre: "" }, settings.ui);
 
 function save() { store.saveCollection(items); syncUp(); }
 function saveUi() { settings = store.loadSettings(); settings.ui = ui; store.saveSettings(settings); }
@@ -57,7 +57,37 @@ const sorters = {
   year: (a, b) => (a.year || 9999) - (b.year || 9999),
 };
 
+// Genre filter: Discogs has broad genres (Pop, Rock…) and detailed styles (K-pop, Ballad…). Value is "g:Pop" or "s:K-pop".
+function renderGenreFilter() {
+  const count = (field) => {
+    const m = new Map();
+    for (const a of items) for (const x of new Set(a[field] || [])) m.set(x, (m.get(x) || 0) + 1);
+    return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  };
+  const opts = (list, prefix) => list.map(([name, n]) =>
+    `<option value="${prefix}:${esc(name)}">${esc(name)} (${n})</option>`).join("");
+  const genres = count("genres"), styles = count("styles");
+  $("genreFilter").innerHTML = `<option value="">All genres</option>`
+    + (genres.length ? `<optgroup label="Genres">${opts(genres, "g")}</optgroup>` : "")
+    + (styles.length ? `<optgroup label="Styles">${opts(styles, "s")}</optgroup>` : "");
+  // forget a saved choice that no longer exists in the collection
+  if (ui.genre && ![...$("genreFilter").options].some(o => o.value === ui.genre)) ui.genre = "";
+  $("genreFilter").value = ui.genre;
+  $("genreFilter").classList.toggle("on", !!ui.genre);
+}
+
+function genreMatch(key) {
+  if (!ui.genre) return true;
+  const a = itemsByKey.get(key);
+  if (!a) return false;
+  const [kind, name] = [ui.genre[0], ui.genre.slice(2)];
+  return (kind === "g" ? a.genres : a.styles || []).includes(name);
+}
+let itemsByKey = new Map();
+
 function renderCollection() {
+  itemsByKey = new Map(items.map(a => [a.key, a]));
+  renderGenreFilter();
   const sorted = [...items].sort(sorters[ui.sort]);
   $("grid").innerHTML = sorted.map(a => `<div class="item" data-key="${esc(a.key)}" data-text="${esc((a.title + " " + a.artist).toLowerCase())}">
       <img class="cover" loading="lazy" src="${esc(a.cover || a.thumb)}" alt="">
@@ -107,14 +137,14 @@ function applyFilters() {
   const g = $("globalSearch").value.trim().toLowerCase();
   let shown = 0, total = 0;
   if (ui.mode === "albums" && ui.layout === "grid") {
-    for (const el of $("grid").children) { const ok = !g || el.dataset.text.includes(g); el.hidden = !ok; total++; if (ok) shown++; }
+    for (const el of $("grid").children) { const ok = genreMatch(el.dataset.key) && (!g || el.dataset.text.includes(g)); el.hidden = !ok; total++; if (ok) shown++; }
   } else {
     const table = ui.mode === "songs" ? $("songs") : $("list");
     const inputs = [...table.querySelectorAll(".colsearch")];
     const body = table.tBodies[0];
     body.querySelector(".nomatch")?.remove();
     for (const tr of body.rows) {
-      const ok = (!g || tr.textContent.toLowerCase().includes(g)) && inputs.every(i => cellMatch(i, tr.cells[i.dataset.col].textContent));
+      const ok = genreMatch(tr.dataset.key) && (!g || tr.textContent.toLowerCase().includes(g)) && inputs.every(i => cellMatch(i, tr.cells[i.dataset.col].textContent));
       tr.hidden = !ok; total++; if (ok) shown++;
     }
     if (!shown && total) body.insertAdjacentHTML("beforeend", '<tr class="nomatch"><td colspan="8">No matches</td></tr>');
@@ -122,7 +152,8 @@ function applyFilters() {
   const filtered = shown !== total ? `${shown} of ` : "";
   if (ui.mode === "songs") {
     const all = items.flatMap(a => a.tracks.filter(t => t.type === "track"));
-    const sum = all.reduce((n, t) => n + (t.secs || 0), 0);
+    const sum = [...$("songs").tBodies[0].rows].filter(tr => !tr.hidden && !tr.classList.contains("nomatch"))
+      .reduce((n, tr) => n + secs(tr.cells[5].textContent), 0);
     $("count").textContent = `${filtered}${all.length} songs · ${Math.floor(sum / 3600)} h ${Math.floor(sum % 3600 / 60)} min`;
   } else {
     $("count").textContent = `${filtered}${items.length} CDs`;
@@ -132,6 +163,7 @@ function applyFilters() {
 document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { ui.mode = b.dataset.mode; saveUi(); updateCollectionView(); });
 document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { ui.layout = b.dataset.view; saveUi(); updateCollectionView(); });
 $("sort").onchange = () => { ui.sort = $("sort").value; saveUi(); renderCollection(); };
+$("genreFilter").onchange = () => { ui.genre = $("genreFilter").value; saveUi(); $("genreFilter").classList.toggle("on", !!ui.genre); applyFilters(); };
 document.querySelectorAll(".colsearch").forEach(i => i.oninput = applyFilters);
 $("globalSearch").oninput = () => {
   if (!$("page-collection").classList.contains("on")) { location.hash = "#/"; }
