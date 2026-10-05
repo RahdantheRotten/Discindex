@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discindex: organize your CD collection</title>
+<meta name="description" content="Discindex is a free website to organize your CD collection. Scan barcodes, search Discogs, import your Discogs collection, and browse your albums and songs with covers, tracklists and song lengths.">
+<meta name="keywords" content="Discindex, CD collection, music collection, Discogs, barcode scanner, album organizer, tracklist">
+<meta property="og:title" content="Discindex: organize your CD collection">
+<meta property="og:description" content="Scan barcodes, search Discogs and browse your CDs, albums and songs in one place. Free.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://rahdantherotten.github.io/discindex/">
+<link rel="canonical" href="https://rahdantherotten.github.io/discindex/">
+<meta name="theme-color" content="#C2410C">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%231C1C1E'/><circle cx='50' cy='50' r='14' fill='%23C2410C'/></svg>">
+<link rel="stylesheet" href="css/style.css">
+<!-- barcode scanner library -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#/">●&nbsp;Disc<span>index</span></a>
+  <input class="search" id="globalSearch" placeholder="Search your collection…" autocomplete="off">
+  <a class="btn" href="#/add">+ Add CD</a>
+  <button class="icon-btn" id="gear" title="Settings">⚙</button>
+</header>
+<div class="menu" id="menu">
+  <a href="#/settings">⚙ Settings &amp; Discogs import</a>
+  <div id="menuExport">⬇ Export collection</div>
+  <div id="menuImport">⬆ Import collection file</div>
+</div>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<main>
+  <!-- Collection -->
+  <section class="page" id="page-collection">
+    <div class="toolbar">
+      <div class="tools">
+        <div class="viewswitch big">
+          <button data-mode="albums">💿 Albums</button>
+          <button data-mode="songs">♪ Songs</button>
+        </div>
+        <strong id="count"></strong>
+      </div>
+      <div class="tools">
+        <label>Sort: <select id="sort">
+          <option value="added">Date added</option><option value="artist">Artist</option>
+          <option value="title">Title</option><option value="year">Year</option>
+        </select></label>
+        <div class="viewswitch" id="layoutswitch">
+          <button data-view="grid" title="Grid view">▦ Grid</button>
+          <button data-view="list" title="List view">☰ List</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <table class="list" id="list" hidden>
+      <thead><tr><th></th>
+        <th><input class="colsearch" data-col="1" placeholder="Title…"></th>
+        <th><input class="colsearch" data-col="2" placeholder="Artist…"></th>
+        <th><input class="colsearch num" data-col="3" placeholder="Year…" title="e.g. 1997, 199, 1990-1999, >2000"></th>
+        <th class="wide"><input class="colsearch" data-col="4" placeholder="Genre…"></th>
+        <th class="wide"><input class="colsearch" data-col="5" placeholder="Label…"></th>
+        <th class="wide"><input class="colsearch" data-col="6" placeholder="Format…"></th>
+        <th class="r wide"><input class="colsearch time" data-col="7" placeholder="Length…" title="e.g. 4:21, 4:, 3:00-4:00, >5:00"></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <table class="list" id="songs" hidden>
+      <thead><tr><th></th>
+        <th><input class="colsearch" data-col="1" placeholder="Song…"></th>
+        <th><input class="colsearch" data-col="2" placeholder="Artist…"></th>
+        <th class="wide"><input class="colsearch" data-col="3" placeholder="Album…"></th>
+        <th class="wide"><input class="colsearch num" data-col="4" placeholder="Track…" title="e.g. 3, 1-5, >10"></th>
+        <th class="r"><input class="colsearch time" data-col="5" placeholder="Length…" title="e.g. 4:21, 4:, 3:00-4:00, >5:00"></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint" id="moreRows" hidden></p>
+  </section>
+
+  <!-- Empty collection -->
+  <section class="page" id="page-empty">
+    <div class="empty">
+      <div style="font-size:56px">💿</div>
+      <h1>Welcome to Discindex</h1>
+      <p class="artist">A free, simple way to organize your CD collection.</p>
+      <ul class="intro">
+        <li>📷 <b>Scan a barcode</b> with your phone or webcam, paste a Discogs link, or search by name</li>
+        <li>💿 <b>Browse your albums</b> as a cover grid or list, or <b>every song</b> you own</li>
+        <li>🔍 <b>Search any column</b>: artist, year, label, even song length</li>
+        <li>⬇ <b>Import your Discogs collection</b> in one click</li>
+      </ul>
+      <p class="hint">Your collection is saved privately in your own browser. Album info comes from
+        <a href="https://www.discogs.com" target="_blank" rel="noopener">Discogs</a>; you'll need a free Discogs account and token.</p>
+      <noscript><p class="note">Discindex needs JavaScript turned on.</p></noscript>
+      <div class="actions" style="justify-content:center">
+        <a class="btn" href="#/add">Add your first CD</a>
+        <a class="btn ghost" href="#/settings">Import from Discogs</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Album -->
+  <section class="page" id="page-album">
+    <a class="back" href="#/">← Back to collection</a>
+    <div class="album">
+      <div><img class="bigcover" id="alCover" alt=""></div>
+      <div>
+        <h1 id="alTitle"></h1>
+        <div class="artist" id="alSub"></div>
+        <div class="tags" id="alTags"></div>
+        <div class="box"><dl id="alInfo"></dl></div>
+        <table class="tracks" id="alTracks"></table>
+        <div class="actions">
+          <a class="btn ghost" id="alLink" target="_blank" rel="noopener">View on Discogs ↗</a>
+          <button class="btn ghost" id="alChange">Change version</button>
+          <button class="btn danger" id="alRemove">Remove</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Add CD -->
+  <section class="page" id="page-add">
+    <a class="back" href="#/">← Back to collection</a>
+    <h1 style="margin-bottom:18px">Add a CD</h1>
+    <div class="panel">
+      <form class="addbar" id="addForm">
+        <button type="button" class="ibtn" id="camBtn" title="Scan barcode with camera">📷</button>
+        <button type="button" class="ibtn" id="pasteBtn" title="Paste Discogs link">🔗</button>
+        <input id="addInput" placeholder="Barcode, Discogs link, or artist / album" autocomplete="off">
+        <button type="submit" class="ibtn go" title="Search">🔍</button>
+      </form>
+      <div class="icons-legend">
+        <span>📷 Scan barcode</span><span>🔗 Paste Discogs link</span><span>🔍 Search by name or barcode</span>
+      </div>
+      <div id="camArea" hidden>
+        <div id="reader"></div>
+        <p class="hint" id="camMsg">Hold the barcode in front of the camera.</p>
+      </div>
+      <div id="addStatus"></div>
+      <div class="results" id="results"></div>
+    </div>
+  </section>
+
+  <!-- Choose version -->
+  <section class="page" id="page-versions">
+    <a class="back" id="versBack" href="#/add">← Back</a>
+    <h1>Which one is yours?</h1>
+    <p class="artist" style="font-size:16px" id="versSub"></p>
+    <div class="versions" id="vers"></div>
+    <button class="btn" id="versAdd" disabled>Add to collection</button>
+  </section>
+
+  <!-- Settings -->
+  <section class="page" id="page-settings">
+    <a class="back" href="#/">← Back to collection</a>
+    <h1 style="margin-bottom:18px">Settings</h1>
+    <div class="panel">
+      <div class="box">
+        <h3>Discogs connection</h3>
+        <p class="hint">Your personal token is saved only in this browser.
+          Get one at <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener">discogs.com/settings/developers</a>.</p>
+        <label class="lbl">Personal token<input id="setToken" type="password" autocomplete="off"></label>
+        <label class="lbl">Discogs username<input id="setUser" autocomplete="off"></label>
+        <button class="btn" id="saveSettings">Save</button> <span class="hint" id="saveMsg"></span>
+      </div>
+      <div class="box">
+        <h3>Import from Discogs</h3>
+        <p class="hint">Copies every item in your Discogs collection into Discindex. Discogs only allows about
+          one release per second, so a big collection takes a few minutes. Items you already have are skipped,
+          so you can run it again later to pick up new additions.</p>
+        <button class="btn" id="importDiscogs">Import my Discogs collection</button>
+        <div class="progress" id="importProgress" hidden><div></div></div>
+        <p class="hint" id="importMsg"></p>
+      </div>
+      <div class="box">
+        <h3>Backup</h3>
+        <p class="hint">Save your collection as a file, or load one back.</p>
+        <div class="actions" style="margin-top:0">
+          <button class="btn ghost" id="exportBtn">⬇ Export collection</button>
+          <button class="btn ghost" id="importBtn">⬆ Import collection file</button>
+          <button class="btn danger" id="clearBtn">Delete everything</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
