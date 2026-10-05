@@ -2,6 +2,7 @@
 import * as store from "./store.js";
 import * as discogs from "./discogs.js";
 import { startScanner, stopScanner } from "./scanner.js";
+import * as cloud from "./cloud.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -11,7 +12,7 @@ let items = store.loadCollection();
 let settings = store.loadSettings();
 const ui = Object.assign({ mode: "albums", layout: "grid", sort: "added" }, settings.ui);
 
-function save() { store.saveCollection(items); }
+function save() { store.saveCollection(items); syncUp(); }
 function saveUi() { settings = store.loadSettings(); settings.ui = ui; store.saveSettings(settings); }
 
 function fmtLen(sec) {
@@ -350,7 +351,8 @@ $("saveSettings").onclick = () => {
   s.token = $("setToken").value.trim();
   s.user = $("setUser").value.trim();
   store.saveSettings(s);
-  $("saveMsg").textContent = "Saved ✓";
+  if (user) cloud.saveUserSettings(user.uid, { discogsToken: s.token, discogsUser: s.user }).catch(e => toast(cloud.niceError(e)));
+  $("saveMsg").textContent = user ? "Saved to your account ✓" : "Saved ✓";
   setTimeout(() => $("saveMsg").textContent = "", 2500);
 };
 
@@ -410,11 +412,138 @@ $("menuExport").onclick = doExport;
 $("importBtn").onclick = $("menuImport").onclick = () => $("importFile").click();
 $("importFile").onchange = e => { if (e.target.files[0]) doImportFile(e.target.files[0]); e.target.value = ""; };
 $("clearBtn").onclick = () => {
-  if (!confirm(`Delete all ${items.length} CDs from Discindex? This can't be undone. (Export a backup first if you're unsure.)`)) return;
+  const where = user ? "from your account, on all your devices" : "from this browser";
+  if (!confirm(`Delete all ${items.length} CDs ${where}? This can't be undone. (Export a backup first if you're unsure.)`)) return;
   items = []; save(); toast("Collection deleted"); location.hash = "#/";
 };
 
-$("gear").onclick = e => { e.stopPropagation(); $("menu").classList.toggle("on"); };
+$("gear").onclick = $("avatarBtn").onclick = e => { e.stopPropagation(); $("menu").classList.toggle("on"); };
 document.addEventListener("click", e => { if (!e.target.closest("#menu")) $("menu").classList.remove("on"); });
+
+// ---------- sign in + online sync ----------
+
+let user = null, unlisten = null;
+let synced = new Map();   // key -> JSON of the item as it is online
+const snapshotOf = list => new Map(list.map(i => [i.key, JSON.stringify(i)]));
+
+// Send local changes (added, changed, removed CDs) to the online database.
+let syncing = Promise.resolve();
+function syncUp() {
+  if (!user) return;
+  const now = snapshotOf(items);
+  const upserts = items.filter(i => synced.get(i.key) !== now.get(i.key));
+  const deletes = [...synced.keys()].filter(k => !now.has(k));
+  if (!upserts.length && !deletes.length) return;
+  synced = now;
+  const uid = user.uid;
+  syncing = syncing.then(() => cloud.writeChanges(uid, upserts, deletes))
+    .catch(e => toast("Couldn't sync: " + cloud.niceError(e)));
+}
+
+function rerenderVisible() {
+  if ($("page-collection").classList.contains("on") || $("page-empty").classList.contains("on")) route();
+  else if ($("page-album").classList.contains("on")) openAlbum(currentKey);
+}
+
+async function signedIn(u) {
+  user = u;
+  showAccount();
+  try {
+    const online = await cloud.loadAll(u.uid);
+    // Merge: anything only on this device gets uploaded, everything online comes down.
+    const keys = new Set(online.items.map(i => i.key));
+    const localOnly = items.filter(i => !keys.has(i.key));
+    synced = snapshotOf(online.items);
+    items = [...online.items, ...localOnly];
+    store.saveCollection(items);
+    syncUp();
+    if (localOnly.length) toast(`Uploaded ${localOnly.length} CDs from this device to your account`);
+    // Discogs token: use the one saved in the account, or save this device's one there.
+    const s = store.loadSettings();
+    if (online.settings.discogsToken) { s.token = online.settings.discogsToken; s.user = online.settings.discogsUser || s.user; store.saveSettings(s); }
+    else if (s.token) cloud.saveUserSettings(u.uid, { discogsToken: s.token, discogsUser: s.user || "" });
+    rerenderVisible();
+    if ($("page-settings").classList.contains("on")) openSettings();
+    unlisten = await cloud.listen(u.uid, (list, mine) => {
+      if (mine || !user) return;
+      synced = snapshotOf(list);
+      const changed = JSON.stringify([...snapshotOf(items)].sort()) !== JSON.stringify([...synced].sort());
+      if (!changed) return;
+      items = list; store.saveCollection(items);
+      rerenderVisible();
+    });
+  } catch (e) { toast("Couldn't load your account: " + cloud.niceError(e)); }
+}
+
+function signedOut() {
+  const wasSignedIn = !!user;
+  user = null; synced = new Map();
+  if (unlisten) { unlisten(); unlisten = null; }
+  if (wasSignedIn) {
+    // Your collection is safe online; remove this device's copy so the next person doesn't see it.
+    items = []; store.saveCollection(items);
+    const s = store.loadSettings(); delete s.token; delete s.user; store.saveSettings(s);
+    location.hash = "#/"; route();
+  }
+  showAccount();
+}
+
+function showAccount() {
+  $("signInBtn").hidden = !cloud.enabled || !!user;
+  $("avatarBtn").hidden = !user;
+  $("menuSignOut").hidden = !user;
+  $("menuWho").hidden = !user;
+  if (!user) return;
+  const name = user.displayName || user.email || "You";
+  $("avatarBtn").innerHTML = user.photoURL ? `<img src="${esc(user.photoURL)}" alt="" referrerpolicy="no-referrer">` : esc(name[0].toUpperCase());
+  $("menuWho").innerHTML = `Signed in as<b>${esc(name)}</b>${user.displayName && user.email ? esc(user.email) : ""}<div class="sync">☁ Collection synced</div>`;
+}
+
+// sign-in window
+let signUpMode = false;
+function openAuth() {
+  $("authModal").hidden = false; $("authMsg").textContent = "";
+  setAuthMode(false); setTimeout(() => $("authEmail").focus(), 50);
+}
+function setAuthMode(up) {
+  signUpMode = up;
+  $("authTitle").textContent = up ? "Create your account" : "Sign in to Discindex";
+  $("authSubmit").textContent = up ? "Create account" : "Sign in";
+  $("authToggle").textContent = up ? "Already have an account? Sign in" : "New here? Create an account";
+  $("authPw").autocomplete = up ? "new-password" : "current-password";
+  $("authForgot").hidden = up;
+}
+const closeAuth = () => { $("authModal").hidden = true; };
+async function authAction(fn, btn) {
+  $("authMsg").textContent = ""; busy(btn, true);
+  try { await fn(); closeAuth(); toast("Signed in ✓"); }
+  catch (e) { $("authMsg").textContent = cloud.niceError(e); }
+  busy(btn, false);
+}
+$("signInBtn").onclick = openAuth;
+$("authClose").onclick = closeAuth;
+$("authModal").onclick = e => { if (e.target === $("authModal")) closeAuth(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAuth(); });
+$("googleBtn").onclick = () => authAction(() => cloud.signInGoogle(), $("googleBtn"));
+$("authForm").onsubmit = e => {
+  e.preventDefault();
+  const email = $("authEmail").value.trim(), pw = $("authPw").value;
+  authAction(() => signUpMode ? cloud.signUpEmail(email, pw) : cloud.signInEmail(email, pw), $("authSubmit"));
+};
+$("authToggle").onclick = e => { e.preventDefault(); setAuthMode(!signUpMode); $("authMsg").textContent = ""; };
+$("authForgot").onclick = async e => {
+  e.preventDefault();
+  const email = $("authEmail").value.trim();
+  if (!email) { $("authMsg").textContent = "Type your email above first, then click Forgot password."; return; }
+  try { await cloud.resetPassword(email); $("authMsg").textContent = `We sent a reset link to ${email}. Check your inbox (and spam).`; }
+  catch (err) { $("authMsg").textContent = cloud.niceError(err); }
+};
+$("menuSignOut").onclick = async () => {
+  if (!confirm("Sign out? Your collection stays safe in your account and will come back when you sign in again.")) return;
+  await cloud.signOut();
+};
+
+showAccount();
+cloud.onUserChange(u => u ? signedIn(u) : signedOut()).catch(e => console.warn("Sign-in unavailable", e));
 
 route();

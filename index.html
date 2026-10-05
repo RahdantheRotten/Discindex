@@ -23,12 +23,37 @@
   <a class="logo" href="#/">●&nbsp;Disc<span>index</span></a>
   <input class="search" id="globalSearch" placeholder="Search your collection…" autocomplete="off">
   <a class="btn" href="#/add">+ Add CD</a>
+  <button class="btn ghost" id="signInBtn" hidden>Sign in</button>
+  <button class="avatar" id="avatarBtn" hidden title="Account"></button>
   <button class="icon-btn" id="gear" title="Settings">⚙</button>
 </header>
 <div class="menu" id="menu">
+  <div class="menu-who" id="menuWho" hidden></div>
   <a href="#/settings">⚙ Settings &amp; Discogs import</a>
   <div id="menuExport">⬇ Export collection</div>
   <div id="menuImport">⬆ Import collection file</div>
+  <div id="menuSignOut" hidden>↩ Sign out</div>
+</div>
+
+<!-- Sign in window -->
+<div class="modal-bg" id="authModal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="authTitle">
+    <button class="icon-btn modal-x" id="authClose" title="Close">✕</button>
+    <h2 id="authTitle">Sign in to Discindex</h2>
+    <p class="hint">Sign in to keep your collection in sync on all your devices.</p>
+    <button class="btn google" id="googleBtn"><span class="g">G</span> Continue with Google</button>
+    <div class="or"><span>or</span></div>
+    <form id="authForm">
+      <label class="lbl">Email<input id="authEmail" type="email" autocomplete="email" required></label>
+      <label class="lbl">Password<input id="authPw" type="password" autocomplete="current-password" minlength="6" required></label>
+      <button class="btn" type="submit" id="authSubmit" style="width:100%">Sign in</button>
+    </form>
+    <p class="hint" id="authMsg"></p>
+    <p class="hint auth-links">
+      <a href="#" id="authToggle">New here? Create an account</a> ·
+      <a href="#" id="authForgot">Forgot password?</a>
+    </p>
+  </div>
 </div>
 <input type="file" id="importFile" accept=".json,application/json" hidden>
 
