@@ -258,10 +258,10 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
   body[data-page="add"] .fab, body[data-page="settings"] .fab, body[data-page="versions"] .fab, body[data-page="empty"] .fab { display: none; }
 }
 
-/* computer: 10 covers per row (Kevin's choice), page uses more of a wide screen */
+/* computer: 8 covers per row (Kevin's choice), page uses more of a wide screen */
 @media (min-width: 1000px) {
-  main { max-width: 1800px; }
-  .grid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 20px 14px; }
+  main { max-width: 1600px; }
+  .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 22px 16px; }
   .item .t { font-size: 14px; }
   .item .a { font-size: 13px; }
 }
