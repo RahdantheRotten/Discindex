@@ -4,13 +4,30 @@ import { loadSettings } from "./store.js";
 const API = "https://api.discogs.com";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Discogs allows about 60 requests a minute. Space every request out so we never hit the limit,
+// even when many items are looked up in a row (e.g. importing packages).
+let nextSlot = 0;
+async function waitTurn() {
+  const now = Date.now(), slot = Math.max(now, nextSlot);
+  nextSlot = slot + 1100;
+  if (slot > now) await sleep(slot - now);
+}
+
 async function call(path, params = {}) {
   const { token } = loadSettings();
   if (!token) throw new Error("Add your Discogs token in Settings first.");
   const url = new URL(API + path);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") url.searchParams.set(k, v);
   for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(url, { headers: { Authorization: `Discogs token=${token}` } });
+    await waitTurn();
+    let res;
+    try {
+      res = await fetch(url, { headers: { Authorization: `Discogs token=${token}` } });
+    } catch {
+      // When Discogs blocks for going too fast, the browser only reports a network error: wait and retry
+      await sleep(10000 * (attempt + 1));
+      continue;
+    }
     if (res.status === 429) { await sleep(10000 * (attempt + 1)); continue; }  // too many requests: wait and retry
     if (res.status === 401) throw new Error("Discogs didn't accept your token. Check it in Settings.");
     if (res.status === 404) throw new Error("Discogs couldn't find that.");

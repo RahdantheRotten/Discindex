@@ -196,6 +196,7 @@
         <strong id="pkgCount"></strong>
       </div>
       <div class="tools">
+        <select id="pkgKind" class="genre-filter" title="Filter by type"></select>
         <label class="sort-lbl"><span class="lbl-txt">Sort: </span><select id="pkgSort">
           <option value="newest">Newest order</option><option value="oldest">Oldest order</option>
           <option value="status">Status</option><option value="artist">Artist</option>
@@ -301,7 +302,10 @@
     <div id="pkgChosen"></div>
     <form id="pkgEdit">
       <div class="pkg-grid">
-        <label class="lbl">Album<input id="pkgTitle" required autocomplete="off"></label>
+        <label class="lbl">Type<select id="pkgKindSel">
+          <option value="cd">💿 CD</option><option value="bundle">📦 Bundle (several CDs)</option><option value="merch">🎁 Merch (lightstick, photocards…)</option>
+        </select></label>
+        <label class="lbl">Album / item<input id="pkgTitle" required autocomplete="off"></label>
         <label class="lbl">Artist<input id="pkgArtist" autocomplete="off"></label>
         <label class="lbl">Shop / seller<input id="pkgShop" autocomplete="off"></label>
         <label class="lbl">Order date<input id="pkgDate" type="date"></label>

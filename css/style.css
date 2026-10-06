@@ -337,3 +337,20 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
 }
 
 body[data-page="pkgimport"] .fab { display: none; }
+
+/* package types: CD / bundle / merch */
+.kind-tag { position: absolute; bottom: 7px; left: 7px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px;
+  background: rgba(28,28,30,.82); color: #fff; }
+.linked-head { font-weight: 700; margin: 12px 0 6px; }
+.res.chosen { margin-top: 6px; position: relative; padding-right: 40px; }
+.res.chosen .unlink { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 15px; }
+.imp-kind { margin-top: 6px; font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); }
+.imp-bundle { display: flex; flex-direction: column; gap: 4px; }
+.imp-b { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.imp-b input { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+.imp-b img { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+@media (max-width: 700px) {
+  #page-packages .toolbar > .tools:last-child { grid-template-columns: 1fr 1fr; }
+  #page-packages .toolbar > .tools:last-child .viewswitch, #pkgAddBtn { grid-column: auto; }
+  .imp-kind { font-size: 16px; }
+}

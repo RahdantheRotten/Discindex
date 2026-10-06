@@ -320,8 +320,10 @@ function showResults(q, res) {
   });
 }
 
-async function addRelease(id, { replaceKey = null, force = false } = {}) {
+// quiet: add without opening the album page or showing the "already have it" note (used for bundles)
+async function addRelease(id, { replaceKey = null, force = false, quiet = false } = {}) {
   const existing = items.find(x => x.id === id && x.key !== replaceKey);
+  if (existing && quiet) return existing.key;
   if (existing && !force) {
     location.hash = "#/add";
     setStatus(`⚠ You already have this CD: <b>${esc(existing.title)}</b> by ${esc(existing.artist)}.
@@ -344,6 +346,7 @@ async function addRelease(id, { replaceKey = null, force = false } = {}) {
       replaceKey = item.key;
     }
     save();
+    if (quiet) return replaceKey;
     $("addInput").value = ""; $("results").innerHTML = ""; setStatus("");
     versionState = null;
     location.hash = "#/album/" + encodeURIComponent(replaceKey);
