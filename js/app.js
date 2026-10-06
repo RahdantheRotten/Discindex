@@ -45,6 +45,7 @@ function route() {
   if (page === "versions") return versionState ? show("versions") : (location.hash = "#/add");
   if (page === "settings") return openSettings();
   if (page === "packages") return packages.open();
+  if (page === "import") return arg ? packages.startImport(location.hash.slice("#/import/".length)) : packages.openImport();
   if (!items.length) return show("empty");
   renderCollection();
   show("collection");

@@ -224,6 +224,25 @@
     <div class="empty pkg-empty" id="pkgEmpty" hidden></div>
   </section>
 
+  <!-- Import many packages at once (owner only) -->
+  <section class="page" id="page-pkgimport">
+    <a class="back" href="#/packages">← Back to packages</a>
+    <h1>📦 Import packages</h1>
+    <p class="artist" style="font-size:16px" id="impFrom"></p>
+    <div class="imp-bar box">
+      <label class="lbl">Status for all<select id="impStatus">
+        <option value="ordered">Ordered</option><option value="paid" selected>Paid</option><option value="shipped">Shipped</option>
+      </select></label>
+      <label class="lbl">Order date<input id="impDate" type="date"></label>
+      <button class="btn ghost" id="impAll" type="button">Tick / untick all</button>
+    </div>
+    <div id="impBody"></div>
+    <div class="actions imp-actions">
+      <button class="btn" id="impAdd" disabled>Add packages</button>
+      <button class="btn ghost" id="impCancel">Cancel</button>
+    </div>
+  </section>
+
   <!-- Settings -->
   <section class="page" id="page-settings">
     <a class="back" href="#/">← Back to collection</a>
@@ -245,6 +264,13 @@
         <button class="btn" id="importDiscogs">Import my Discogs collection</button>
         <div class="progress" id="importProgress" hidden><div></div></div>
         <p class="hint" id="importMsg"></p>
+      </div>
+      <div class="box owner-only" hidden>
+        <h3>📦 Discindex button for shop pages</h3>
+        <p class="hint">Drag this button to your browser's bookmarks bar (show the bar with Ctrl+Shift+B).
+          Then open your ZenMarket order list (or Mercari purchases) and click it: the items on the page are
+          sent to Discindex so you can add them as packages. Your shop login never leaves your browser.</p>
+        <p><a class="btn bm-btn" id="bmLink" href="#" onclick="if(this.href.startsWith('javascript:')){alert('Drag this button to your bookmarks bar, then click it on a shop page.');return false}">📦 Discindex</a></p>
       </div>
       <div class="box">
         <h3>Backup</h3>

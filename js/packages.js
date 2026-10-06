@@ -46,6 +46,7 @@ export function init(helpers) {
     if (p && confirm(`Delete the package "${p.title}"?`)) { cloud.deletePackage(user.uid, p.id).catch(err => h.toast(cloud.niceError(err))); closeEditor(); }
   };
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("pkgModal").hidden) closeEditor(); });
+  initImport();
 }
 
 export async function setUser(u) {
@@ -61,6 +62,7 @@ export async function setUser(u) {
     list = l;
     if ($("page-packages")?.classList.contains("on")) render();
   });
+  if ($("page-pkgimport")?.classList.contains("on")) openImport();
 }
 
 export function open() {
@@ -229,6 +231,9 @@ async function find(input) {
   $("pkgMatches").innerHTML = "";
   status('<span class="spinner"></span>Looking…');
   try {
+    // several links pasted at once (a one-line box removes line breaks, so split at each "http")
+    const urls = input.match(/https?:\/\/.+?(?=https?:\/\/|[\s"'<>]|$)/g) || [];
+    if (urls.length > 1) { closeEditor(); return startImport({ from: "pasted links", items: urls.map(url => ({ url, title: "", image: "" })) }); }
     const isUrl = /^https?:\/\/|^www\.|\.[a-z]{2,}\//i.test(input);
     const link = discogs.parseUrl(input);
     if (link?.kind === "release") { status(""); return pick({ id: link.id }); }
@@ -348,4 +353,155 @@ async function arrived(p) {
     $("addInput").value = q;
     h.lookup(q);
   }
+}
+
+// ---------- import many items at once (bookmark button or several pasted links) ----------
+
+const PENDING = "discindex.pendingImport";
+let imp = null;   // { from, items: [{ url, title, image, state, matches, pick, checked, note }] }
+
+// The bookmark button. It runs on the shop page (e.g. ZenMarket "My orders"), in the user's own browser,
+// collects item links and opens Discindex with them. Nothing is sent anywhere else.
+function bookmarklet() {
+  var P = [/itemcode=/i, /jp\.mercari\.com\/(?:[a-z]{2}\/)?(?:item|shops\/product)\//i, /item\.fril\.jp\/[0-9a-f]{32}/i,
+    /auctions\.yahoo\.co\.jp\/.*auction\/[a-z]?\d+/i, /buyee\.jp\/.*(?:item|auction)\//i, /discogs\.com\/(?:[^\/]+\/)?release\/\d+/i];
+  var map = {}, order = [];
+  document.querySelectorAll("a[href]").forEach(function (a) {
+    var h = a.href.split("#")[0];
+    if (!P.some(function (r) { return r.test(h); })) return;
+    var img = a.querySelector("img");
+    var t = (a.textContent || (img && img.alt) || a.title || "").replace(/\s+/g, " ").trim();
+    if (!map[h]) { map[h] = { url: h, title: "", image: "" }; order.push(h); }
+    if (t.length > map[h].title.length) map[h].title = t.slice(0, 160);
+    if (img && !map[h].image) map[h].image = img.currentSrc || img.src;
+  });
+  var items = order.map(function (k) { return map[k]; });
+  if (!items.length && P.some(function (r) { return r.test(location.href); })) items.push({ url: location.href, title: document.title, image: "" });
+  if (!items.length) { alert("Discindex: no shop items found on this page. Open your order list and try again."); return; }
+  window.open("https://discindex.pages.dev/#/import/" + encodeURIComponent(JSON.stringify({ from: location.hostname, items: items.slice(0, 80) })), "_blank");
+}
+export const bookmarkletHref = () => "javascript:" + encodeURIComponent("(" + bookmarklet.toString() + ")()");
+
+// Called by the router for #/import/<data>: keep the data, then show the import page.
+export function startImport(data) {
+  try {
+    const d = typeof data === "string" ? JSON.parse(decodeURIComponent(data)) : data;
+    if (!d?.items?.length) throw new Error("empty");
+    sessionStorage.setItem(PENDING, JSON.stringify(d));
+    imp = null;
+  } catch { h.toast("That import link didn't contain any items."); }
+  if (location.hash !== "#/import") location.hash = "#/import"; else openImport();
+}
+
+export function openImport() {
+  h.show("pkgimport");
+  if (!user) {
+    $("impBody").innerHTML = `<p class="note info">Sign in with your Google account to import packages. Your items are waiting.</p>`;
+    $("impAdd").disabled = true;
+    return;
+  }
+  if (!imp) {
+    let d = null;
+    try { d = JSON.parse(sessionStorage.getItem(PENDING)); } catch {}
+    if (!d?.items?.length) {
+      $("impBody").innerHTML = `<p class="hint">Nothing to import. Use the 📦 Discindex button on a shop page, or paste several links in "Add package".</p>`;
+      $("impAdd").disabled = true;
+      return;
+    }
+    const have = new Set(list.map(p => p.shopUrl).filter(Boolean));
+    imp = { from: d.from, items: d.items.map(it => ({ ...it, state: "waiting", matches: [], pick: 0, checked: !have.has(it.url), note: have.has(it.url) ? "Already in your packages" : "" })) };
+    $("impFrom").textContent = `${imp.items.length} item${imp.items.length === 1 ? "" : "s"} from ${d.from}`;
+    $("impDate").value = today();
+    renderImport();
+    findAllMatches();
+  } else renderImport();
+}
+
+function renderImport() {
+  const esc = h.esc;
+  $("impBody").innerHTML = imp.items.map((it, i) => {
+    const m = it.matches[it.pick];
+    let match;
+    if (it.state === "waiting") match = `<span class="hint">Waiting…</span>`;
+    else if (it.state === "busy") match = `<span class="hint"><span class="spinner"></span>Finding on Discogs…</span>`;
+    else if (!it.matches.length) match = `<span class="hint">No Discogs match: it will be added by name${it.error ? ` (${esc(it.error)})` : ""}</span>`;
+    else match = `<div class="imp-pick">${m?.thumb ? `<img src="${esc(m.thumb)}" alt="">` : ""}
+      <select data-pick="${i}">${it.matches.map((x, j) => `<option value="${j}"${j === it.pick ? " selected" : ""}>${esc(x.label)}</option>`).join("")}
+        <option value="-1"${it.pick === -1 ? " selected" : ""}>None of these: add by name</option></select></div>`;
+    const name = it.title || it.pageTitle || it.url;
+    return `<div class="imp-row${it.checked ? "" : " off"}">
+      <input type="checkbox" data-check="${i}"${it.checked ? " checked" : ""} aria-label="Import this item">
+      ${it.image ? `<img class="imp-img" src="${esc(it.image)}" alt="" loading="lazy">` : `<div class="imp-img pkg-ph">📦</div>`}
+      <div class="imp-shop"><b>${esc(name)}</b><div class="m">${esc(shopName(hostOf(it.url)))}${it.note ? ` · ${esc(it.note)}` : ""}</div></div>
+      <div class="imp-match">${match}</div></div>`;
+  }).join("");
+  const n = imp.items.filter(it => it.checked).length;
+  $("impAdd").disabled = !n;
+  $("impAdd").textContent = `Add ${n} package${n === 1 ? "" : "s"}`;
+  $("impBody").querySelectorAll("[data-check]").forEach(el => el.onchange = () => { imp.items[+el.dataset.check].checked = el.checked; renderImport(); });
+  $("impBody").querySelectorAll("[data-pick]").forEach(el => el.onchange = () => { imp.items[+el.dataset.pick].pick = +el.value; renderImport(); });
+}
+
+const hostOf = u => { try { return new URL(u).hostname; } catch { return ""; } };
+
+// Look up every item one after another (Discogs allows about one request per second).
+async function findAllMatches() {
+  const run = imp;
+  for (const it of run.items) {
+    if (imp !== run) return;                       // a new import started
+    if (!it.checked) { it.state = "done"; continue; }
+    it.state = "busy"; renderImport();
+    try {
+      const link = discogs.parseUrl(it.url);
+      let results;
+      if (link?.kind === "release") results = [{ id: link.id, title: it.title || `Release ${link.id}` }];
+      else {
+        const info = await fetch(`${API}/api/page-info?url=${encodeURIComponent(it.url)}`).then(r => r.json()).catch(() => ({}));
+        it.pageTitle = info.title || "";
+        if (!it.image && info.image) it.image = info.image;
+        results = await searchAll({ title: info.title || it.title, urlWords: [it.title, info.urlWords].filter(Boolean).join(" "),
+          barcodes: info.barcodes || [], catnos: info.catnos || [] });
+      }
+      it.matches = results.slice(0, 6).map(r => {
+        const v = discogs.toVersion(r);
+        const [artist, title] = (r.title || "").includes(" - ") ? [discogs.clean(r.title.split(" - ")[0]), r.title.split(" - ").slice(1).join(" - ")] : ["", r.title || ""];
+        return { id: r.id, artist, title, thumb: v.thumb, cover: r.cover_image || v.thumb,
+          label: [artist, title].filter(Boolean).join(" – ") + " · " + [v.country, v.year, v.catno].filter(Boolean).join(" ") + (r.how ? ` (by ${r.how})` : "") };
+      });
+      it.pick = it.matches.length ? 0 : -1;
+    } catch (e) { it.error = e.message; it.matches = []; it.pick = -1; }
+    it.state = "done";
+    if (imp === run) renderImport();
+  }
+}
+
+async function addImported() {
+  const status = $("impStatus").value, date = $("impDate").value || today();
+  const chosen = imp.items.filter(it => it.checked);
+  if (chosen.some(it => it.state !== "done") && !confirm("Some items are still being looked up. Add them by name for now?")) return;
+  let n = 0;
+  for (const it of chosen) {
+    const m = it.pick >= 0 ? it.matches[it.pick] : null;
+    await save({
+      id: `p${Date.now()}${n}`, created: new Date().toISOString(), arrivedDate: "",
+      title: m?.title || cleanTitle(it.title || it.pageTitle) || it.url,
+      artist: m?.artist || "",
+      shop: shopName(hostOf(it.url)), shopUrl: it.url,
+      orderDate: date, status,
+      releaseId: m?.id || null,
+      thumb: m?.thumb || it.image || "", cover: m?.cover || it.image || "",
+    });
+    n++;
+  }
+  sessionStorage.removeItem(PENDING); imp = null;
+  h.toast(`Added ${n} package${n === 1 ? "" : "s"}`);
+  location.hash = "#/packages";
+}
+
+function initImport() {
+  if (!$("impAdd")) return;
+  $("impAdd").onclick = addImported;
+  $("impCancel").onclick = () => { sessionStorage.removeItem(PENDING); imp = null; location.hash = "#/packages"; };
+  $("impAll").onclick = () => { if (!imp) return; const on = imp.items.some(it => !it.checked); imp.items.forEach(it => it.checked = on); renderImport(); };
+  if ($("bmLink")) $("bmLink").href = bookmarkletHref();
 }
