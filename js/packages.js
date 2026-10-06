@@ -523,7 +523,7 @@ function bookmarklet() {
 
   // Open the Discindex tab right away (browsers block windows opened later), and show progress here.
   var w = window.open("about:blank", "_blank");
-  try { w.document.write("<p style='font:18px system-ui,sans-serif;padding:24px'>📦 Discindex is reading your items… you can watch the progress on the shop page.</p>"); } catch (e) {}
+  try { w.document.write("<p style='font:18px system-ui,sans-serif;padding:24px'>📦 Discindex will open your items here one by one, then show the import page. Please wait…</p>"); } catch (e) {}
   var box = document.createElement("div");
   box.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483647;background:#1C1C1E;color:#fff;font:15px system-ui,sans-serif;padding:12px 18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)";
   document.body.appendChild(box);
@@ -556,22 +556,47 @@ function bookmarklet() {
     for (var i = 0; i < 12; i++) sum += d[i] * (i % 2 ? 3 : 1);
     return (10 - sum % 10) % 10 === d[12];
   };
-  var readDetails = function (it) {
-    return fetch(it.url, { credentials: "include" }).then(function (r) { return r.text(); }).then(function (html) {
-      var strip = function (x) { return (x || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim(); };
-      var name = strip(meta(html, "og:title")) || strip((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1])
-        || strip((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1]);
-      name = name.replace(/\s*[|｜-]\s*ZenMarket.*$/i, "").trim();
-      if (name && !/^just a moment/i.test(name)) it.name = name.slice(0, 200);
-      var text = strip(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " "));
-      var codes = [];
-      (text.match(/(?:JAN|EAN|UPC|barcode|バーコード)[^0-9]{0,30}\d[\d\s-]{11,16}\d/gi) || []).forEach(function (m) {
-        var c = m.replace(/^\D+/, "").replace(/[\s-]/g, "");
-        if (validCode(c) && codes.indexOf(c) < 0) codes.push(c);
-      });
-      if (codes.length) it.codes = codes.slice(0, 3);
-      if (!it.image) it.image = meta(html, "og:image");
-    }).catch(function () {});
+  // The real name, picture and barcode from a product page that has finished showing in the browser
+  var readDoc = function (it, d) {
+    var og = d.querySelector('meta[property="og:title"]'), ogi = d.querySelector('meta[property="og:image"]');
+    var h1 = d.querySelector("h1");
+    var clean = function (x) { return (x || "").replace(/\s+/g, " ").trim(); };
+    var name = clean(h1 && h1.textContent) || clean(og && og.content) || clean(d.title);
+    name = name.replace(/\s*[|｜-]\s*ZenMarket.*$/i, "").trim();
+    it.dbg = clean(d.title).slice(0, 80);
+    if (name && !/^just a moment|^zenmarket|^error|^404/i.test(name)) it.name = name.slice(0, 200);
+    var text = (d.body && d.body.innerText) || "", codes = [];
+    (text.match(/(?:JAN|EAN|UPC|barcode|バーコード)[^0-9]{0,30}\d[\d\s-]{11,16}\d/gi) || []).forEach(function (m) {
+      var c = m.replace(/^\D+/, "").replace(/[\s-]/g, "");
+      if (validCode(c) && codes.indexOf(c) < 0) codes.push(c);
+    });
+    if (codes.length) it.codes = codes.slice(0, 3);
+    if (!it.image) {
+      var big = [].slice.call(d.images || []).filter(function (im) { return im.naturalWidth >= 200 && im.naturalHeight >= 200; })[0];
+      it.image = (ogi && ogi.content) || (big && (big.currentSrc || big.src)) || "";
+    }
+  };
+  // "Press" the link: open the product page in the helper tab (same site, so it can be read), wait until it has
+  // finished showing (the name is filled in by the page itself), read it, then go on to the next one.
+  var pressLink = function (it) {
+    return new Promise(function (resolve) {
+      if (!w || w.closed) return resolve();
+      var before; try { before = w.document; } catch (e) {}
+      try { w.location.href = it.url; } catch (e) { return resolve(); }
+      var t0 = Date.now(), loaded = 0;
+      var timer = setInterval(function () {
+        var d = null; try { d = w.document; } catch (e) {}
+        var fresh = d && d !== before && d.location && d.location.href !== "about:blank";
+        if (fresh && d.readyState === "complete" && !loaded) loaded = Date.now();
+        var h1 = fresh && d.querySelector("h1");
+        var settled = loaded && (Date.now() - loaded > 2500 || (h1 && h1.textContent.trim().length > 3 && Date.now() - loaded > 800));
+        if (settled || Date.now() - t0 > 20000) {
+          clearInterval(timer);
+          if (fresh) { try { readDoc(it, d); } catch (e) {} }
+          resolve();
+        }
+      }, 300);
+    });
   };
 
   var todo = followOrder.map(function (k) { return follow[k]; }).slice(0, 100), done = 0;
@@ -583,10 +608,15 @@ function bookmarklet() {
   };
   say(followOrder.length ? "reading items 0 / " + Math.min(followOrder.length, 100) + "…" : "collecting items…");
   next(readOne).then(function () {
-    todo = order.map(function (k) { return map[k]; }).filter(function (it) { return it.url.indexOf(location.origin) === 0; }).slice(0, 100);
-    done = 0;
-    if (todo.length) say("reading product pages 0 / " + todo.length + "…");
-    return next(readDetails);
+    // one product page at a time in the helper tab
+    var pages = order.map(function (k) { return map[k]; }).filter(function (it) { return it.url.indexOf(location.origin) === 0; }).slice(0, 100);
+    var i = 0;
+    var step = function () {
+      if (i >= pages.length) return Promise.resolve();
+      say("opening product pages " + (i + 1) + " / " + pages.length + "…");
+      return pressLink(pages[i++]).then(step);
+    };
+    return step();
   }).then(function () {
     var items = order.map(function (k) { return map[k]; }).slice(0, 100);
     if (!items.length && isShop(location.href)) items.push({ url: location.href, title: document.title, image: "" });
@@ -670,7 +700,7 @@ function renderImport() {
         <option value="-1"${it.pick === -1 ? " selected" : ""}>None of these: add by name</option></select></div>`;
     }
     const name = it.name || it.title || it.pageTitle || it.url;
-    const category = it.name && it.title && it.title !== it.name ? it.title : "";
+    const category = it.name && it.title && it.title !== it.name ? it.title : !it.name && it.dbg ? `page said: "${it.dbg}"` : "";
     return `<div class="imp-row${it.checked ? "" : " off"}">
       <input type="checkbox" data-check="${i}"${it.checked ? " checked" : ""} aria-label="Import this item">
       ${it.image ? `<img class="imp-img" src="${esc(it.image)}" alt="" loading="lazy">` : `<div class="imp-img pkg-ph">${it.kind === "merch" ? "🎁" : "📦"}</div>`}
