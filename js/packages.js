@@ -548,14 +548,46 @@ function bookmarklet() {
     }).catch(function () {});
   };
 
+  // Product pages on this site (e.g. ZenMarket's page for an Amazon item) show the real name and often the
+  // barcode. Read them here, where the user is logged in, because the shops block Discindex's server.
+  var validCode = function (c) {
+    if (!/^\d{12,13}$/.test(c)) return false;
+    var d = ("0" + c).slice(-13).split("").map(Number), sum = 0;
+    for (var i = 0; i < 12; i++) sum += d[i] * (i % 2 ? 3 : 1);
+    return (10 - sum % 10) % 10 === d[12];
+  };
+  var readDetails = function (it) {
+    return fetch(it.url, { credentials: "include" }).then(function (r) { return r.text(); }).then(function (html) {
+      var strip = function (x) { return (x || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim(); };
+      var name = strip(meta(html, "og:title")) || strip((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1])
+        || strip((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1]);
+      name = name.replace(/\s*[|｜-]\s*ZenMarket.*$/i, "").trim();
+      if (name && !/^just a moment/i.test(name)) it.name = name.slice(0, 200);
+      var text = strip(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " "));
+      var codes = [];
+      (text.match(/(?:JAN|EAN|UPC|barcode|バーコード)[^0-9]{0,30}\d[\d\s-]{11,16}\d/gi) || []).forEach(function (m) {
+        var c = m.replace(/^\D+/, "").replace(/[\s-]/g, "");
+        if (validCode(c) && codes.indexOf(c) < 0) codes.push(c);
+      });
+      if (codes.length) it.codes = codes.slice(0, 3);
+      if (!it.image) it.image = meta(html, "og:image");
+    }).catch(function () {});
+  };
+
   var todo = followOrder.map(function (k) { return follow[k]; }).slice(0, 100), done = 0;
-  var next = function () {
+  var total = function () { return done + todo.length; };
+  var next = function (fn) {
     if (!todo.length) return Promise.resolve();
     var batch = todo.splice(0, 4);
-    return Promise.all(batch.map(function (f) { return readOne(f).then(function () { done++; say("reading items " + done + " / " + (done + todo.length) + "…"); }); })).then(next);
+    return Promise.all(batch.map(function (f) { return fn(f).then(function () { done++; say("reading items " + done + " / " + total() + "…"); }); })).then(function () { return next(fn); });
   };
   say(followOrder.length ? "reading items 0 / " + Math.min(followOrder.length, 100) + "…" : "collecting items…");
-  next().then(function () {
+  next(readOne).then(function () {
+    todo = order.map(function (k) { return map[k]; }).filter(function (it) { return it.url.indexOf(location.origin) === 0; }).slice(0, 100);
+    done = 0;
+    if (todo.length) say("reading product pages 0 / " + todo.length + "…");
+    return next(readDetails);
+  }).then(function () {
     var items = order.map(function (k) { return map[k]; }).slice(0, 100);
     if (!items.length && isShop(location.href)) items.push({ url: location.href, title: document.title, image: "" });
     if (!items.length) {
@@ -601,7 +633,7 @@ export function openImport() {
     }
     const seen = new Set();
     const items = d.items.filter(it => { const k = itemKey(it.url); if (seen.has(k)) return false; seen.add(k); return true; });
-    imp = { from: d.from, items: items.map(it => ({ ...it, key: itemKey(it.url), kind: detectKind(it.title), state: "waiting", searched: false, matches: [], pick: 0, picks: [],
+    imp = { from: d.from, items: items.map(it => ({ ...it, key: itemKey(it.url), kind: detectKind(`${it.title || ""} ${it.name || ""}`), state: "waiting", searched: false, matches: [], pick: 0, picks: [],
       checked: true, note: "" })) };
     markExisting();
     const n = k => imp.items.filter(it => it.kind === k).length;
@@ -637,11 +669,12 @@ function renderImport() {
       <select data-pick="${i}">${it.matches.map((x, j) => `<option value="${j}"${j === it.pick ? " selected" : ""}>${esc(x.label)}</option>`).join("")}
         <option value="-1"${it.pick === -1 ? " selected" : ""}>None of these: add by name</option></select></div>`;
     }
-    const name = it.title || it.pageTitle || it.url;
+    const name = it.name || it.title || it.pageTitle || it.url;
+    const category = it.name && it.title && it.title !== it.name ? it.title : "";
     return `<div class="imp-row${it.checked ? "" : " off"}">
       <input type="checkbox" data-check="${i}"${it.checked ? " checked" : ""} aria-label="Import this item">
       ${it.image ? `<img class="imp-img" src="${esc(it.image)}" alt="" loading="lazy">` : `<div class="imp-img pkg-ph">${it.kind === "merch" ? "🎁" : "📦"}</div>`}
-      <div class="imp-shop"><b>${esc(name)}</b><div class="m">${esc(shopName(hostOf(it.url)))}${it.note ? ` · ${esc(it.note)}` : ""}</div>
+      <div class="imp-shop"><b>${esc(name)}</b><div class="m">${esc([shopName(hostOf(it.url)), category, it.note].filter(Boolean).join(" · "))}</div>
         <select class="imp-kind" data-kind="${i}" aria-label="Type">${Object.entries(KIND).map(([k, l]) => `<option value="${k}"${k === it.kind ? " selected" : ""}>${l}</option>`).join("")}</select></div>
       <div class="imp-match">${match}</div></div>`;
   }).join("");
@@ -688,11 +721,15 @@ async function lookupItem(it) {
       const info = await fetch(`${API}/api/page-info?url=${encodeURIComponent(it.url)}`).then(r => r.json()).catch(() => ({}));
       it.pageTitle = info.title || "";
       if (!it.image && info.image) it.image = info.image;
+      // A shop that blocks reading (e.g. Amazon) only gives a bare "Amazon.co.jp" title
+      const useful = info.title && !/^\s*(amazon\.[a-z.]+|just a moment.*|access denied|robot check)\s*$/i.test(info.title);
       // ZenMarket lists items by category ("Music CD, (recorded)"): only search with that if nothing better was found
       const generic = /\(recorded\)|no batteries|^\s*(music cd|light stick|collectible card|illustration book)/i.test(it.title || "");
-      results = await searchAll({ title: info.title || (generic ? "" : it.title), artist: info.artist || "",
-        urlWords: [info.title || generic ? "" : it.title, info.urlWords].filter(Boolean).join(" "),
-        barcodes: info.barcodes || [], catnos: info.catnos || [] });
+      const title = (useful && info.title) || it.name || (generic ? "" : it.title);
+      if (!useful && it.name) it.pageTitle = it.name;
+      results = await searchAll({ title, artist: useful ? info.artist || "" : "",
+        urlWords: [title === it.title || generic ? "" : it.title, info.urlWords].filter(Boolean).join(" "),
+        barcodes: [...new Set([...(info.barcodes || []), ...(it.codes || [])])], catnos: info.catnos || [] });
     }
     it.matches = results.slice(0, 6).map(r => {
       const v = discogs.toVersion(r);
@@ -729,7 +766,7 @@ async function addImported() {
   if (chosen.some(it => it.kind !== "merch" && it.state !== "done") && !confirm("Some items are still being looked up. Add them by name for now?")) return;
   let n = 0;
   for (const it of chosen) {
-    const name = it.title || it.pageTitle || it.url;
+    const name = it.name || it.title || it.pageTitle || it.url;
     let rels = [];
     if (it.kind === "cd" && it.pick >= 0 && it.matches[it.pick]) rels = [it.matches[it.pick]];
     if (it.kind === "bundle") rels = it.picks.map(j => it.matches[j]).filter(Boolean);
