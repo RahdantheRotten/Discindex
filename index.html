@@ -196,7 +196,6 @@
         <strong id="pkgCount"></strong>
       </div>
       <div class="tools">
-        <select id="pkgKind" class="genre-filter" title="Filter by type"></select>
         <label class="sort-lbl"><span class="lbl-txt">Sort: </span><select id="pkgSort">
           <option value="newest">Newest order</option><option value="oldest">Oldest order</option>
           <option value="status">Status</option><option value="artist">Artist</option>
@@ -208,6 +207,12 @@
         </div>
         <button class="btn" id="pkgAddBtn">+ Add package</button>
       </div>
+    </div>
+    <div class="viewswitch pkg-filter pkg-kinds">
+      <button data-pkind="all">All types <small></small></button>
+      <button data-pkind="cd">💿 CDs <small></small></button>
+      <button data-pkind="bundle">📦 Bundles <small></small></button>
+      <button data-pkind="merch">🎁 Merch <small></small></button>
     </div>
     <div class="pkg-filter-row">
     <div class="viewswitch pkg-filter">

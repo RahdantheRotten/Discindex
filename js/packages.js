@@ -43,7 +43,7 @@ export function init(helpers) {
   document.querySelectorAll("[data-pstatus]").forEach(b => b.onclick = () => { view.status = b.dataset.pstatus; saveView(); render(); });
   document.querySelectorAll("[data-pview]").forEach(b => b.onclick = () => { view.layout = b.dataset.pview; saveView(); render(); });
   $("pkgSort").onchange = () => { view.sort = $("pkgSort").value; saveView(); render(); };
-  if ($("pkgKind")) $("pkgKind").onchange = () => { view.kind = $("pkgKind").value; saveView(); render(); };
+  document.querySelectorAll("[data-pkind]").forEach(b => b.onclick = () => { view.kind = b.dataset.pkind; saveView(); render(); });
   $("pkgAddBtn").onclick = () => openEditor(null);
   if ($("pkgDupes")) $("pkgDupes").onclick = removeDuplicates;
   $("pkgGrid").onclick = $("pkgTable").onclick = onListClick;
@@ -150,13 +150,11 @@ function render() {
   });
   document.querySelectorAll("[data-pview]").forEach(b => b.classList.toggle("on", b.dataset.pview === view.layout));
   $("pkgSort").value = view.sort;
-  if ($("pkgKind")) {
-    const kc = k => list.filter(p => kindOf(p) === k).length;
-    $("pkgKind").innerHTML = `<option value="all">All types (${list.length})</option>` +
-      ["cd", "bundle", "merch"].map(k => `<option value="${k}">${KIND[k]} (${kc(k)})</option>`).join("");
-    $("pkgKind").value = view.kind;
-    $("pkgKind").classList.toggle("on", view.kind !== "all");
-  }
+  document.querySelectorAll("[data-pkind]").forEach(b => {
+    const k = b.dataset.pkind;
+    b.classList.toggle("on", k === view.kind);
+    b.querySelector("small").textContent = k === "all" ? list.length : list.filter(p => kindOf(p) === k).length;
+  });
 
   const shown = visible();
   $("pkgCount").textContent = `${list.filter(p => p.status !== "arrived").length} on the way`;
