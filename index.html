@@ -27,6 +27,7 @@
 
 <header>
   <a class="logo" href="#/">●&nbsp;Disc<span>index</span></a>
+  <a class="nav-tab owner-only" id="packagesTab" href="#/packages" hidden>📦 Packages</a>
   <input class="search" id="globalSearch" placeholder="Search your collection…" autocomplete="off">
   <a class="btn add-top" href="#/add">+ Add CD</a>
   <button class="btn ghost" id="signInBtn" hidden>Sign in</button>
@@ -35,6 +36,7 @@
 </header>
 <div class="menu" id="menu">
   <div class="menu-who" id="menuWho" hidden></div>
+  <a href="#/packages" class="owner-only" hidden>📦 Packages</a>
   <a href="#/settings">⚙ Settings &amp; Discogs import</a>
   <div id="menuExport">⬇ Export collection</div>
   <div id="menuImport">⬆ Import collection file</div>
@@ -184,6 +186,29 @@
     <p class="artist" style="font-size:16px" id="versSub"></p>
     <div class="versions" id="vers"></div>
     <button class="btn" id="versAdd" disabled>Add to collection</button>
+  </section>
+
+  <!-- Packages (only for the owner's account) -->
+  <section class="page" id="page-packages">
+    <a class="back" href="#/">← Back to collection</a>
+    <div class="pkg-head"><h1>📦 Packages</h1><span class="hint" id="pkgCount"></span></div>
+    <form class="box pkg-form" id="pkgForm">
+      <h3>Add a package</h3>
+      <label class="lbl">Discogs link <span class="hint">(optional: fills in the album and makes "Arrived" one click)</span>
+        <input id="pkgLink" placeholder="https://www.discogs.com/release/…" autocomplete="off"></label>
+      <p class="hint" id="pkgLinkMsg"></p>
+      <div class="pkg-grid">
+        <label class="lbl">Album<input id="pkgTitle" required autocomplete="off"></label>
+        <label class="lbl">Artist<input id="pkgArtist" autocomplete="off"></label>
+        <label class="lbl">Shop / seller<input id="pkgShop" autocomplete="off"></label>
+        <label class="lbl">Order date<input id="pkgDate" type="date"></label>
+        <label class="lbl">Status<select id="pkgStatus">
+          <option value="ordered">Ordered</option><option value="paid">Paid</option><option value="shipped">Shipped</option>
+        </select></label>
+      </div>
+      <button class="btn" type="submit">+ Add package</button>
+    </form>
+    <div id="pkgList"></div>
   </section>
 
   <!-- Settings -->

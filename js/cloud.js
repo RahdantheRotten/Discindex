@@ -101,6 +101,25 @@ export async function writeChanges(uid, upserts, deletes) {
   }
 }
 
+// ---- packages (owner only) ----
+
+export async function listenPackages(uid, cb) {
+  const { db, F } = await init();
+  return F.onSnapshot(F.collection(db, "users", uid, "packages"),
+    snap => cb(snap.docs.map(d => ({ ...d.data(), id: d.id }))));
+}
+
+export async function savePackage(uid, p) {
+  const { db, F } = await init();
+  const { id, ...data } = p;
+  await F.setDoc(F.doc(db, "users", uid, "packages", id), data);
+}
+
+export async function deletePackage(uid, id) {
+  const { db, F } = await init();
+  await F.deleteDoc(F.doc(db, "users", uid, "packages", id));
+}
+
 export async function saveUserSettings(uid, s) {
   const { db, F } = await init();
   await F.setDoc(F.doc(db, "users", uid), s, { merge: true });

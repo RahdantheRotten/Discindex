@@ -3,6 +3,7 @@ import * as store from "./store.js";
 import * as discogs from "./discogs.js";
 import { startScanner, stopScanner } from "./scanner.js";
 import * as cloud from "./cloud.js";
+import * as packages from "./packages.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -43,6 +44,7 @@ function route() {
   if (page === "add") return openAdd();
   if (page === "versions") return versionState ? show("versions") : (location.hash = "#/add");
   if (page === "settings") return openSettings();
+  if (page === "packages") return packages.open();
   if (!items.length) return show("empty");
   renderCollection();
   show("collection");
@@ -323,7 +325,7 @@ async function addRelease(id, { replaceKey = null, force = false } = {}) {
     setStatus(`⚠ You already have this CD: <b>${esc(existing.title)}</b> by ${esc(existing.artist)}.
       <a href="#/album/${encodeURIComponent(existing.key)}">Open it</a> · <a href="#" id="addAnyway">Add another copy</a>`, "warn");
     $("addAnyway").onclick = e => { e.preventDefault(); addRelease(id, { replaceKey, force: true }); };
-    return;
+    return null;
   }
   toast("Adding from Discogs…");
   try {
@@ -343,7 +345,8 @@ async function addRelease(id, { replaceKey = null, force = false } = {}) {
     $("addInput").value = ""; $("results").innerHTML = ""; setStatus("");
     versionState = null;
     location.hash = "#/album/" + encodeURIComponent(replaceKey);
-  } catch (e) { toast(e.message); }
+    return replaceKey;
+  } catch (e) { toast(e.message); return null; }
 }
 
 // ---------- choose version ----------
@@ -481,6 +484,7 @@ function rerenderVisible() {
 async function signedIn(u) {
   user = u;
   showAccount();
+  packages.setUser(u).catch(e => console.warn("Packages unavailable", e));
   try {
     const online = await cloud.loadAll(u.uid);
     // Merge: anything only on this device gets uploaded, everything online comes down.
@@ -510,6 +514,7 @@ async function signedIn(u) {
 
 function signedOut() {
   const wasSignedIn = !!user;
+  packages.setUser(null);
   user = null; synced = new Map();
   if (unlisten) { unlisten(); unlisten = null; }
   if (wasSignedIn) {
@@ -576,6 +581,7 @@ $("menuSignOut").onclick = async () => {
   await cloud.signOut();
 };
 
+packages.init({ show, toast, esc, addRelease, lookup });
 showAccount();
 cloud.onUserChange(u => u ? signedIn(u) : signedOut()).catch(e => console.warn("Sign-in unavailable", e));
 
