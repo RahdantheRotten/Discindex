@@ -190,25 +190,38 @@
 
   <!-- Packages (only for the owner's account) -->
   <section class="page" id="page-packages">
-    <a class="back" href="#/">← Back to collection</a>
-    <div class="pkg-head"><h1>📦 Packages</h1><span class="hint" id="pkgCount"></span></div>
-    <form class="box pkg-form" id="pkgForm">
-      <h3>Add a package</h3>
-      <label class="lbl">Discogs link <span class="hint">(optional: fills in the album and makes "Arrived" one click)</span>
-        <input id="pkgLink" placeholder="https://www.discogs.com/release/…" autocomplete="off"></label>
-      <p class="hint" id="pkgLinkMsg"></p>
-      <div class="pkg-grid">
-        <label class="lbl">Album<input id="pkgTitle" required autocomplete="off"></label>
-        <label class="lbl">Artist<input id="pkgArtist" autocomplete="off"></label>
-        <label class="lbl">Shop / seller<input id="pkgShop" autocomplete="off"></label>
-        <label class="lbl">Order date<input id="pkgDate" type="date"></label>
-        <label class="lbl">Status<select id="pkgStatus">
-          <option value="ordered">Ordered</option><option value="paid">Paid</option><option value="shipped">Shipped</option>
-        </select></label>
+    <div class="toolbar">
+      <div class="tools">
+        <h1 class="pkg-h1">📦 Packages</h1>
+        <strong id="pkgCount"></strong>
       </div>
-      <button class="btn" type="submit">+ Add package</button>
-    </form>
-    <div id="pkgList"></div>
+      <div class="tools">
+        <label class="sort-lbl"><span class="lbl-txt">Sort: </span><select id="pkgSort">
+          <option value="newest">Newest order</option><option value="oldest">Oldest order</option>
+          <option value="status">Status</option><option value="artist">Artist</option>
+          <option value="title">Title</option><option value="shop">Shop</option>
+        </select></label>
+        <div class="viewswitch">
+          <button data-pview="grid" title="Grid view">▦<span class="lbl-txt"> Grid</span></button>
+          <button data-pview="list" title="List view">☰<span class="lbl-txt"> List</span></button>
+        </div>
+        <button class="btn" id="pkgAddBtn">+ Add package</button>
+      </div>
+    </div>
+    <div class="viewswitch pkg-filter">
+      <button data-pstatus="open">On the way <small></small></button>
+      <button data-pstatus="ordered">Ordered <small></small></button>
+      <button data-pstatus="paid">Paid <small></small></button>
+      <button data-pstatus="shipped">Shipped <small></small></button>
+      <button data-pstatus="arrived">Arrived <small></small></button>
+      <button data-pstatus="all">All <small></small></button>
+    </div>
+    <div class="grid" id="pkgGrid"></div>
+    <table class="list" id="pkgTable" hidden>
+      <thead><tr><th></th><th>Album</th><th>Artist</th><th class="wide">Shop</th><th class="wide">Ordered</th><th class="r">Status</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty pkg-empty" id="pkgEmpty" hidden></div>
   </section>
 
   <!-- Settings -->
@@ -245,6 +258,41 @@
     </div>
   </section>
 </main>
+
+<!-- Package editor (owner only) -->
+<div class="modal-bg" id="pkgModal" hidden>
+  <div class="modal pkg-modal" role="dialog" aria-labelledby="pkgModalTitle">
+    <button class="icon-btn modal-x" id="pkgClose" title="Close">✕</button>
+    <h2 id="pkgModalTitle">Add a package</h2>
+    <p class="hint">Paste the link from Mercari, Rakuma, ZenMarket or any shop, and Discindex finds the album on Discogs.</p>
+    <form class="addbar" id="pkgFind">
+      <button type="button" class="ibtn" id="pkgPaste" title="Paste link">🔗</button>
+      <input id="pkgUrl" placeholder="Shop link, Discogs link, or artist + album" autocomplete="off">
+      <button type="submit" class="ibtn go" title="Find">🔍</button>
+    </form>
+    <div id="pkgFindStatus"></div>
+    <div class="results pkg-matches" id="pkgMatches"></div>
+    <div id="pkgChosen"></div>
+    <form id="pkgEdit">
+      <div class="pkg-grid">
+        <label class="lbl">Album<input id="pkgTitle" required autocomplete="off"></label>
+        <label class="lbl">Artist<input id="pkgArtist" autocomplete="off"></label>
+        <label class="lbl">Shop / seller<input id="pkgShop" autocomplete="off"></label>
+        <label class="lbl">Order date<input id="pkgDate" type="date"></label>
+        <label class="lbl">Status<select id="pkgStatus">
+          <option value="ordered">Ordered</option><option value="paid">Paid</option><option value="shipped">Shipped</option><option value="arrived">Arrived</option>
+        </select></label>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit" id="pkgSaveBtn">+ Add package</button>
+        <button class="btn ghost" type="button" id="pkgArrivedBtn">✓ Arrived</button>
+        <a class="btn ghost" id="pkgShopLink" target="_blank" rel="noopener">Open shop page ↗</a>
+        <a class="btn ghost" id="pkgDiscogsLink" target="_blank" rel="noopener">Discogs ↗</a>
+        <button class="btn danger" type="button" id="pkgDeleteBtn">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <a class="fab" href="#/add" aria-label="Add CD" title="Add CD">+</a>
 <div class="toast" id="toast" hidden></div>

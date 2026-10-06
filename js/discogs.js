@@ -28,6 +28,9 @@ export const searchBarcode = code =>
 export const searchText = q =>
   call("/database/search", { q, type: "release", format: "CD", per_page: 50 }).then(r => r.results);
 
+export const searchCatno = catno =>
+  call("/database/search", { catno, type: "release", per_page: 50 }).then(r => r.results);
+
 export const masterVersions = id =>
   call(`/masters/${id}/versions`, { format: "CD", per_page: 100 }).then(r => r.versions);
 

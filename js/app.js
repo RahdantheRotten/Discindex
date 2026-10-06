@@ -169,6 +169,7 @@ $("sort").onchange = () => { ui.sort = $("sort").value; saveUi(); renderCollecti
 $("genreFilter").onchange = () => { ui.genre = $("genreFilter").value; saveUi(); $("genreFilter").classList.toggle("on", !!ui.genre); applyFilters(); };
 document.querySelectorAll(".colsearch").forEach(i => i.oninput = applyFilters);
 $("globalSearch").oninput = () => {
+  if (packages.isOpen()) return packages.search();
   if (!$("page-collection").classList.contains("on")) { location.hash = "#/"; }
   applyFilters();
 };
