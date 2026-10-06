@@ -45,6 +45,7 @@ export function init(helpers) {
   $("pkgSort").onchange = () => { view.sort = $("pkgSort").value; saveView(); render(); };
   if ($("pkgKind")) $("pkgKind").onchange = () => { view.kind = $("pkgKind").value; saveView(); render(); };
   $("pkgAddBtn").onclick = () => openEditor(null);
+  if ($("pkgDupes")) $("pkgDupes").onclick = removeDuplicates;
   $("pkgGrid").onclick = $("pkgTable").onclick = onListClick;
   // editor window
   $("pkgClose").onclick = closeEditor;
@@ -88,6 +89,7 @@ export async function setUser(u) {
   unlisten = await cloud.listenPackages(user.uid, l => {
     list = l;
     if ($("page-packages")?.classList.contains("on")) render();
+    if (markExisting() && $("page-pkgimport")?.classList.contains("on")) renderImport();
   });
   if ($("page-pkgimport")?.classList.contains("on")) openImport();
 }
@@ -175,10 +177,39 @@ function render() {
       <td>${cover(p, "thumb")}</td><td class="t">${esc(p.title)}</td><td>${esc([p.artist, kindTag(p)].filter(Boolean).join(" · "))}</td>
       <td class="m wide">${esc(p.shop)}</td><td class="m wide">${esc(nice(p.orderDate))}</td>
       <td class="r">${badge(p)}</td><td class="r pkg-act">${arrivedBtn(p)}</td></tr>`).join("");
+  const dupes = duplicates().length;
+  if ($("pkgDupes")) { $("pkgDupes").hidden = !dupes; $("pkgDupes").textContent = `🧹 Remove ${dupes} duplicate${dupes === 1 ? "" : "s"}`; }
   $("pkgEmpty").hidden = shown.length > 0;
   $("pkgEmpty").innerHTML = list.length
     ? "No packages match this filter."
     : `No packages yet.<br><button class="btn" onclick="document.getElementById('pkgAddBtn').click()">+ Add your first package</button>`;
+}
+
+// Packages that are the same shop item. Keeps the most complete copy of each.
+function duplicates() {
+  const groups = new Map();
+  for (const p of list) {
+    const k = itemKey(p.shopUrl) || `title:${kindOf(p)}:${(p.title || "").toLowerCase()}:${p.orderDate}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  }
+  const score = p => (p.status === "arrived" ? 1000 : 0) + releasesOf(p).length * 50 + STEPS.indexOf(p.status) * 10
+    + (p.kind ? 5 : 0) + (p.thumb ? 2 : 0) + (p.artist ? 1 : 0);
+  const extra = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    g.sort((a, b) => score(b) - score(a) || (a.created || "").localeCompare(b.created || ""));
+    extra.push(...g.slice(1));
+  }
+  return extra;
+}
+
+async function removeDuplicates() {
+  const extra = duplicates();
+  if (!extra.length) return h.toast("No duplicates found");
+  if (!confirm(`Remove ${extra.length} duplicate package${extra.length === 1 ? "" : "s"}? For each item the most complete copy is kept.`)) return;
+  for (const p of extra) await cloud.deletePackage(user.uid, p.id).catch(e => h.toast(cloud.niceError(e)));
+  h.toast(`Removed ${extra.length} duplicate${extra.length === 1 ? "" : "s"}`);
 }
 
 function onListClick(e) {
@@ -461,11 +492,13 @@ function bookmarklet() {
   document.querySelectorAll("a[href]").forEach(function (a) {
     var h = a.href.split("#")[0];
     if (!P.some(function (r) { return r.test(h); })) return;
+    var c = h.match(/itemcode=([^&]+)/i) || h.match(/\/(m\d{8,}|[0-9a-f]{32})(?:[\/?]|$)/i) || h.match(/auction\/([a-z]?\d{6,})/i);
+    var k = c ? c[1].toLowerCase() : h;
     var img = a.querySelector("img");
     var t = (a.textContent || (img && img.alt) || a.title || "").replace(/\s+/g, " ").trim();
-    if (!map[h]) { map[h] = { url: h, title: "", image: "" }; order.push(h); }
-    if (t.length > map[h].title.length) map[h].title = t.slice(0, 160);
-    if (img && !map[h].image) map[h].image = img.currentSrc || img.src;
+    if (!map[k]) { map[k] = { url: h, title: "", image: "" }; order.push(k); }
+    if (t.length > map[k].title.length) map[k].title = t.slice(0, 160);
+    if (img && !map[k].image) map[k].image = img.currentSrc || img.src;
   });
   var items = order.map(function (k) { return map[k]; });
   if (!items.length && P.some(function (r) { return r.test(location.href); })) items.push({ url: location.href, title: document.title, image: "" });
@@ -500,15 +533,26 @@ export function openImport() {
       $("impAdd").disabled = true;
       return;
     }
-    const have = new Set(list.map(p => p.shopUrl).filter(Boolean));
-    imp = { from: d.from, items: d.items.map(it => ({ ...it, kind: detectKind(it.title), state: "waiting", searched: false, matches: [], pick: 0, picks: [],
-      checked: !have.has(it.url), note: have.has(it.url) ? "Already in your packages" : "" })) };
+    const seen = new Set();
+    const items = d.items.filter(it => { const k = itemKey(it.url); if (seen.has(k)) return false; seen.add(k); return true; });
+    imp = { from: d.from, items: items.map(it => ({ ...it, key: itemKey(it.url), kind: detectKind(it.title), state: "waiting", searched: false, matches: [], pick: 0, picks: [],
+      checked: true, note: "" })) };
+    markExisting();
     const n = k => imp.items.filter(it => it.kind === k).length;
     $("impFrom").textContent = `${imp.items.length} item${imp.items.length === 1 ? "" : "s"} from ${d.from} · ${n("cd")} CDs, ${n("bundle")} bundles, ${n("merch")} merch (guessed, change if wrong)`;
     $("impDate").value = today();
     renderImport();
     findAllMatches();
   } else renderImport();
+}
+
+// Untick items that are already packages (also runs again when the packages finish loading).
+function markExisting() {
+  if (!imp) return false;
+  const have = new Set(list.map(p => itemKey(p.shopUrl)).filter(Boolean));
+  let changed = false;
+  for (const it of imp.items) if (have.has(it.key) && !it.note) { it.checked = false; it.note = "Already in your packages"; changed = true; }
+  return changed;
 }
 
 function renderImport() {
@@ -553,6 +597,20 @@ function renderImport() {
 }
 
 const hostOf = u => { try { return new URL(u).hostname; } catch { return ""; } };
+
+// The same shop item can have slightly different links (extra parameters, /en/ or not, via ZenMarket or direct).
+// Compare by item number instead: ZenMarket itemCode, Mercari m-number, Rakuma id, Yahoo auction id.
+export function itemKey(url) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    const code = [...u.searchParams].find(([k]) => k.toLowerCase() === "itemcode")?.[1];
+    if (code) return "item:" + code.toLowerCase();
+    const m = u.pathname.match(/\/(m\d{8,})\b/i) || u.pathname.match(/\/([0-9a-f]{32})\b/i) || u.pathname.match(/auction\/([a-z]?\d{6,})/i);
+    if (m) return "item:" + m[1].toLowerCase();
+    return (u.hostname.replace(/^www\./, "") + u.pathname).toLowerCase().replace(/\/$/, "");
+  } catch { return url; }
+}
 
 async function lookupItem(it) {
   it.state = "busy"; renderImport();

@@ -209,6 +209,7 @@
         <button class="btn" id="pkgAddBtn">+ Add package</button>
       </div>
     </div>
+    <div class="pkg-filter-row">
     <div class="viewswitch pkg-filter">
       <button data-pstatus="open">On the way <small></small></button>
       <button data-pstatus="ordered">Ordered <small></small></button>
@@ -216,6 +217,8 @@
       <button data-pstatus="shipped">Shipped <small></small></button>
       <button data-pstatus="arrived">Arrived <small></small></button>
       <button data-pstatus="all">All <small></small></button>
+    </div>
+    <button class="btn ghost small" id="pkgDupes" hidden></button>
     </div>
     <div class="grid" id="pkgGrid"></div>
     <table class="list" id="pkgTable" hidden>
