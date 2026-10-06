@@ -49,6 +49,9 @@ export function sourceUrl(url) {
   const code = url.searchParams.get("itemCode") || url.searchParams.get("itemcode") || "";
   const path = url.pathname;
   if (host.endsWith("zenmarket.jp")) {
+    const shop = (url.searchParams.get("shop") || "").toLowerCase();
+    if (shop === "amazon" && /^[A-Z0-9]{10}$/i.test(code)) return new URL(`https://www.amazon.co.jp/dp/${code}`);
+    if (shop === "bookoff" && /^\d{8,12}$/.test(code)) return new URL(`https://shopping.bookoff.co.jp/used/${code}`);
     if (/mercari/i.test(path) && /^m\d+$/.test(code)) return new URL(`https://jp.mercari.com/item/${code}`);
     if (/rakuma|fril/i.test(path) && /^[0-9a-f]{32}$/i.test(code)) return new URL(`https://item.fril.jp/${code}`);
     if (/auction|yahoo/i.test(path) && /^[a-z]?\d+$/i.test(code)) return new URL(`https://page.auctions.yahoo.co.jp/jp/auction/${code}`);
@@ -70,7 +73,7 @@ export function urlHints(url) {
   const catnos = [...all.toUpperCase().matchAll(/(?<![A-Z0-9])([A-Z]{3,5}-\d{4,6})(?!\d)/g)].map(m => m[1]);
   // the longest readable piece of the path, with dashes turned into spaces
   const words = path.split("/").map(p => p.replace(/\.(html?|php|aspx?)$/i, "").replace(/[-_+]+/g, " ").trim())
-    .filter(p => /[\p{L}]{2,}/u.test(p) && !/^[0-9a-f]{16,}$/i.test(p) && !/^[a-z]?\d+$/i.test(p) && !/^(item|items|dp|product|products|goods|detail|itm|p|en|ja|jp|ko|kr|shop|music|cd|mercariproduct|rakumaproduct|auction)$/i.test(p))
+    .filter(p => /[\p{L}]{2,}/u.test(p) && !/^[0-9a-f]{16,}$/i.test(p) && !/^[a-z]?\d+$/i.test(p) && !/^(item|items|dp|product|products|goods|detail|itm|p|en|ja|jp|ko|kr|shop|music|cd|mercariproduct|rakumaproduct|auction|used|new)$/i.test(p))
     .sort((a, b) => b.length - a.length)[0] || "";
   return { barcodes, catnos, words };
 }
@@ -112,32 +115,47 @@ function validBarcode(code) {
 }
 
 export function extract(html) {
+  // Amazon: the product title and the artist line
+  const amazonTitle = decode(((html.match(/id=["']productTitle["'][^>]*>([\s\S]*?)<\/span>/i) || [])[1] || "").replace(/<[^>]+>/g, " "));
+  const byline = decode(((html.match(/id=["']bylineInfo["'][^>]*>([\s\S]*?)<\/div>/i) || [])[1] || "").replace(/<[^>]+>/g, " "));
+  const artist = byline.split(/形式|Format|\(アーティスト\)|\(Artist\)|ブランド|Brand|Visit the/)[0].replace(/[,、\s]+$/, "").trim().normalize("NFKC");
+  if (amazonTitle) {
+    const t = amazonTitle.normalize("NFKC");
+    return finish(t, artist);
+  }
   // shops sometimes shorten one of these, so take the longest
   const title = [meta(html, "og:title"), meta(html, "twitter:title"),
     decode((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1]),
     decode(((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || "").replace(/<[^>]+>/g, ""))]
     .filter(Boolean).sort((a, b) => b.length - a.length)[0] || "";
-  const image = meta(html, "og:image") || meta(html, "twitter:image");
+  return finish(title.normalize("NFKC"), "");
 
-  const barcodes = new Set();
-  // structured product data (JSON-LD) and meta tags
-  for (const m of html.matchAll(/"(?:gtin13|gtin12|gtin|ean|upc|jan)"\s*:\s*"?(\d{12,13})"?/gi)) barcodes.add(m[1]);
-  for (const name of ["product:ean", "product:upc", "og:ean", "og:upc"]) { const v = meta(html, name); if (v) barcodes.add(v); }
-  // numbers written next to a barcode label on the page
-  const description = meta(html, "og:description") || meta(html, "description");
-  const text = description + " " + decode(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "));
-  for (const m of text.matchAll(/(?:JAN|EAN|UPC|barcode|バーコード|JANコード|바코드)[^0-9]{0,30}(\d[\d\s-]{11,16}\d)/gi)) barcodes.add(m[1].replace(/[\s-]/g, ""));
+  function finish(title, artist) {
+    const image = meta(html, "og:image") || meta(html, "twitter:image")
+      || (html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i) || [])[1] || "";
 
-  const catnos = new Set();
-  for (const m of text.matchAll(/(?:品番|規格品番|商品番号|カタログ番号|catalog(?:ue)?\s*(?:no|number|#)\.?|cat\.?\s*no\.?)\s*[:：]?\s*([A-Z]{2,6}-?\d{3,6}(?:[\/~～-]\d{1,4})?)/gi)) catnos.add(m[1].toUpperCase());
-  // Japanese-style catalog numbers in the title, e.g. "UPCH-20512" or "TOCP50201"
-  for (const m of (title || "").matchAll(/\b([A-Z]{3,5}-\d{4,6})\b/g)) catnos.add(m[1]);
+    const barcodes = new Set();
+    // structured product data (JSON-LD) and meta tags
+    for (const m of html.matchAll(/"(?:gtin13|gtin12|gtin|ean|upc|jan)"\s*:\s*"?(\d{12,13})"?/gi)) barcodes.add(m[1]);
+    for (const name of ["product:ean", "product:upc", "og:ean", "og:upc"]) { const v = meta(html, name); if (v) barcodes.add(v); }
+    // numbers written next to a barcode label on the page
+    const description = meta(html, "og:description") || meta(html, "description");
+    const text = description + " " + decode(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "));
+    for (const m of text.matchAll(/(?:JAN|EAN|UPC|barcode|バーコード|JANコード|바코드)[^0-9]{0,30}(\d[\d\s-]{11,16}\d)/gi)) barcodes.add(m[1].replace(/[\s-]/g, ""));
 
-  return {
-    title,
-    description: description.slice(0, 500),
-    image,
-    barcodes: [...barcodes].filter(validBarcode).slice(0, 5),
-    catnos: [...catnos].slice(0, 5),
-  };
+    const catnos = new Set();
+    for (const m of text.matchAll(/(?:品番|規格品番|商品番号|カタログ番号|catalog(?:ue)?\s*(?:no|number|#)\.?|cat\.?\s*no\.?)\s*[:：]?\s*([A-Z]{2,6}-?\d{3,6}(?:[\/~～-]\d{1,4})?)/gi)) catnos.add(m[1].toUpperCase());
+    // Japanese-style catalog numbers in the title, e.g. "UPCH-20512" or "TOCP50201"
+    for (const m of (title || "").matchAll(/\b([A-Z]{3,5}-\d{4,6})\b/g)) catnos.add(m[1]);
+
+    if (!artist) artist = (description.match(/」(.+?)の(?:中古|新品)商品ページ/) || [])[1] || "";
+    return {
+      title,
+      artist,
+      description: description.slice(0, 500),
+      image,
+      barcodes: [...barcodes].filter(validBarcode).slice(0, 5),
+      catnos: [...catnos].slice(0, 5),
+    };
+  }
 }

@@ -271,7 +271,7 @@ const shopName = host => {
   const known = { "mercari": "Mercari", "amazon": "Amazon", "qoo10": "Qoo10", "yesasia": "YesAsia", "ktown4u": "Ktown4u",
     "cdjapan": "CDJapan", "tower": "Tower Records", "hmv": "HMV", "joshinweb": "Joshin", "ebay": "eBay", "aladin": "Aladin",
     "yes24": "YES24", "rakuten": "Rakuten", "acbuy": "acbuy", "buyee": "Buyee", "zenmarket": "ZenMarket", "discogs": "Discogs",
-    "musicplaza": "Music Plaza", "kpopalbums": "Kpopalbums", "weverse": "Weverse", "makestar": "Makestar", "jpopsuki": "JPopsuki", "fril": "Rakuma" };
+    "musicplaza": "Music Plaza", "kpopalbums": "Kpopalbums", "weverse": "Weverse", "makestar": "Makestar", "jpopsuki": "JPopsuki", "fril": "Rakuma", "bookoff": "BOOKOFF" };
   const parts = host.replace(/^www\./, "").split(".");
   for (const p of parts) if (known[p]) return known[p];
   return parts.length > 1 ? parts[parts.length - 2].replace(/^\w/, c => c.toUpperCase()) : host;
@@ -284,6 +284,7 @@ function cleanTitle(t) {
     .replace(/の通販 by .*$/, " ")                                   // Rakuma: "…の通販 by shop｜…ならラクマ"
     .replace(/\s*(?:by|-)\s*(?:メルカリ|mercari)\s*$/i, " ")          // Mercari: "… by メルカリ"
     .replace(/\s*-\s*(?:Yahoo!?オークション|ヤフオク!?).*$/i, " ")
+    .replace(/\s*(?:中古|新品)?\s*(?:CD|DVD|Blu-ray|BD)?\s*[|｜]\s*ブックオフ.*$/i, " ")   // BOOKOFF: "… 中古CD | ブックオフ公式オンラインストア"
     .replace(/(?:\d+\s*)?点セット|まとめ売り|送料込み?|送料無料|匿名配送|美品|新品|中古|未開封|未使用|輸入盤|国内盤|韓国盤|初回限定盤?|通常盤|トレカ(?:付き)?|特典(?:付き)?|アルバム|シングル|バージョン選択|選択可?|ランダム|ver\.?\s*選択/gi, " ")
     .replace(/[「」『』]/g, " ")
     .replace(/\[(qoo10|amazon[^\]]*)\]/gi, " ")
@@ -346,6 +347,7 @@ async function find(input) {
 
 // Barcode first (exact), then catalog number, then words from the title / link.
 async function searchAll(info) {
+  if (info.artist && info.title && !info.title.toLowerCase().includes(info.artist.toLowerCase())) info = { ...info, title: `${info.artist} ${info.title}` };
   const seen = new Set(), out = [];
   const add = rs => { for (const r of rs || []) if (!seen.has(r.id)) { seen.add(r.id); out.push({ ...r, how: add.how }); } };
   for (const b of info.barcodes || []) { add.how = "barcode"; add(await discogs.searchBarcode(b)); }
@@ -686,7 +688,10 @@ async function lookupItem(it) {
       const info = await fetch(`${API}/api/page-info?url=${encodeURIComponent(it.url)}`).then(r => r.json()).catch(() => ({}));
       it.pageTitle = info.title || "";
       if (!it.image && info.image) it.image = info.image;
-      results = await searchAll({ title: info.title || it.title, urlWords: [it.title, info.urlWords].filter(Boolean).join(" "),
+      // ZenMarket lists items by category ("Music CD, (recorded)"): only search with that if nothing better was found
+      const generic = /\(recorded\)|no batteries|^\s*(music cd|light stick|collectible card|illustration book)/i.test(it.title || "");
+      results = await searchAll({ title: info.title || (generic ? "" : it.title), artist: info.artist || "",
+        urlWords: [info.title || generic ? "" : it.title, info.urlWords].filter(Boolean).join(" "),
         barcodes: info.barcodes || [], catnos: info.catnos || [] });
     }
     it.matches = results.slice(0, 6).map(r => {
