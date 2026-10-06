@@ -21,9 +21,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const API = /pages\.dev$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? "" : "https://discindex.pages.dev";
 
 // Guess the type from a shop title: merch (lightsticks, photocards…), a bundle of several CDs, or one CD.
-const MERCH = /light ?stick|pen ?light|ペンライト|ペンラ|ラントレ|トレカ|photo ?cards?|ポスター|poster|acrylic|アクスタ|アクリル|keyring|key ?chain|キーホルダー|缶バッ?ジ|badge|t-?shirt|tシャツ|タオル|towel|hoodie|パーカー|グッズ|goods|fan ?light|ぬいぐるみ|plush|doll|sticker|ステッカー|うちわ|slogan|スローガン|bracelet|ブレスレット|lanyard|mug|マグ/i;
+const MERCH = /collectible|\bcards?\b|カード|light ?stick|pen ?light|ペンライト|ペンラ|ラントレ|トレカ|photo ?cards?|ポスター|poster|acrylic|アクスタ|アクリル|keyring|key ?chain|キーホルダー|缶バッ?ジ|badge|t-?shirt|tシャツ|タオル|towel|hoodie|パーカー|グッズ|goods|fan ?light|ぬいぐるみ|plush|doll|sticker|ステッカー|うちわ|slogan|スローガン|bracelet|ブレスレット|lanyard|mug|マグ/i;
 const CDWORD = /\bcds?\b|album|アルバム|single|シングル|\bep\b|repackage|リパッケージ|盤|disc/i;
-const BUNDLE = /\bset\b|セット|まとめ|bundle|\blot\b|\d+\s*(?:枚|点|pcs|items|albums|cds)|\+|＋|&|、|\betc\b/i;
+const BUNDLE = /\bsets?\b|\d+\s*versions?\b|セット|まとめ|bundle|\blot\b|\d+\s*(?:枚|点|pcs|items|albums|cds)|\+|＋|&|、|\betc\b/i;
 export function detectKind(title) {
   const t = title || "";
   if (MERCH.test(t)) return CDWORD.test(t) ? "bundle" : "merch";
@@ -481,28 +481,94 @@ async function arrived(p) {
 const PENDING = "discindex.pendingImport";
 let imp = null;   // { from, items: [{ url, title, image, kind, state, matches, pick, picks, checked, note }] }
 
-// The bookmark button. It runs on the shop page (e.g. ZenMarket "My orders"), in the user's own browser,
-// collects item links and opens Discindex with them. Nothing is sent anywhere else.
+// The bookmark button. It runs on the shop page (e.g. ZenMarket "My orders"), in the user's own browser.
+// It collects item links; links to the site's own item pages (ZenMarket's order list) are opened in the
+// background, with the user's own login, to find the original Mercari / Rakuma / Yahoo item.
+// Then it opens Discindex with the items. Nothing is sent anywhere else.
 function bookmarklet() {
-  var P = [/itemcode=/i, /jp\.mercari\.com\/(?:[a-z]{2}\/)?(?:item|shops\/product)\//i, /item\.fril\.jp\/[0-9a-f]{32}/i,
-    /auctions\.yahoo\.co\.jp\/.*auction\/[a-z]?\d+/i, /buyee\.jp\/.*(?:item|auction)\//i, /discogs\.com\/(?:[^\/]+\/)?release\/\d+/i];
+  var SHOP = /https?:\/\/(?:jp\.mercari\.com\/(?:[a-z]{2}\/)?(?:item\/m\d{8,}|shops\/product\/[\w-]+)|item\.fril\.jp\/[0-9a-f]{32}|page\.auctions\.yahoo\.co\.jp\/jp\/auction\/[a-z]?\d{6,}|(?:www\.)?discogs\.com\/(?:[^\/"'\s<>]+\/)?release\/\d+)/i;
+  var P = [/itemcode=/i, SHOP, /buyee\.jp\/.*(?:item|auction)\//i];
+  var isShop = function (h) { return P.some(function (r) { return r.test(h); }); };
+  var keyOf = function (h) {
+    var c = h.match(/itemcode=([^&"'<>\s]+)/i) || h.match(/\/(m\d{8,}|[0-9a-f]{32})(?:[\/?"'<>\s]|$)/i) || h.match(/auction\/([a-z]?\d{6,})/i);
+    return c ? c[1].toLowerCase() : h;
+  };
   var map = {}, order = [];
+  var add = function (url, title, image) {
+    var k = keyOf(url);
+    if (!map[k]) { map[k] = { url: url, title: "", image: "" }; order.push(k); }
+    if (title && title.length > map[k].title.length) map[k].title = title.slice(0, 160);
+    if (image && !map[k].image) map[k].image = image;
+  };
+  var textOf = function (a) { var img = a.querySelector("img"); return (a.textContent || (img && img.alt) || a.title || "").replace(/\s+/g, " ").trim(); };
+  var imgOf = function (a) { var img = a.querySelector("img") || (a.closest("tr") && a.closest("tr").querySelector("img")); return img ? (img.currentSrc || img.src) : ""; };
+
+  // 1. direct links to shop items
+  // 2. links to this site's own item/order pages (e.g. ZenMarket's order list): open those to find the original item
+  var follow = {}, followOrder = [];
   document.querySelectorAll("a[href]").forEach(function (a) {
     var h = a.href.split("#")[0];
-    if (!P.some(function (r) { return r.test(h); })) return;
-    var c = h.match(/itemcode=([^&]+)/i) || h.match(/\/(m\d{8,}|[0-9a-f]{32})(?:[\/?]|$)/i) || h.match(/auction\/([a-z]?\d{6,})/i);
-    var k = c ? c[1].toLowerCase() : h;
-    var img = a.querySelector("img");
-    var t = (a.textContent || (img && img.alt) || a.title || "").replace(/\s+/g, " ").trim();
-    if (!map[k]) { map[k] = { url: h, title: "", image: "" }; order.push(k); }
-    if (t.length > map[k].title.length) map[k].title = t.slice(0, 160);
-    if (img && !map[k].image) map[k].image = img.currentSrc || img.src;
+    if (/^javascript:/i.test(h)) return;
+    if (isShop(h)) return add(h, textOf(a), imgOf(a));
+    if (a.host !== location.host || h === location.href.split("#")[0]) return;
+    if (!a.closest("tr, li, [class*=item], [class*=Item], [class*=order], [class*=Order], [class*=product], [class*=Product]")) return;
+    if (/log(?:in|out)|help|faq|guide|contact|settings|payment|calculator|blog|news|signup|register|cart\b/i.test(h)) return;
+    var t = textOf(a);
+    if (!follow[h]) { follow[h] = { url: h, title: "", image: "" }; followOrder.push(h); }
+    if (t.length > follow[h].title.length) follow[h].title = t;
+    if (!follow[h].image) follow[h].image = imgOf(a);
   });
-  var items = order.map(function (k) { return map[k]; });
-  if (!items.length && P.some(function (r) { return r.test(location.href); })) items.push({ url: location.href, title: document.title, image: "" });
-  if (!items.length) { alert("Discindex: no shop items found on this page. Open your order list and try again."); return; }
-  window.open("https://discindex.pages.dev/#/import/" + encodeURIComponent(JSON.stringify({ from: location.hostname, items: items.slice(0, 80) })), "_blank");
+
+  // Open the Discindex tab right away (browsers block windows opened later), and show progress here.
+  var w = window.open("about:blank", "_blank");
+  try { w.document.write("<p style='font:18px system-ui,sans-serif;padding:24px'>📦 Discindex is reading your items… you can watch the progress on the shop page.</p>"); } catch (e) {}
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483647;background:#1C1C1E;color:#fff;font:15px system-ui,sans-serif;padding:12px 18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)";
+  document.body.appendChild(box);
+  var say = function (t) { box.textContent = "📦 Discindex: " + t; };
+
+  var meta = function (html, name) {
+    var m = html.match(new RegExp("<meta[^>]+(?:property|name)=[\"']" + name + "[\"'][^>]*>", "i"));
+    var c = m && m[0].match(/content=["']([^"']*)["']/i);
+    return c ? c[1] : "";
+  };
+  var readOne = function (f) {
+    return fetch(f.url, { credentials: "include" }).then(function (r) { return r.text(); }).then(function (html) {
+      // the original item: the shop link that appears most often on the page (others may be recommendations)
+      var found = (html.match(new RegExp(SHOP.source, "gi")) || []).concat(
+        (html.match(/[^"'<>\s]*itemcode=[^"'&<>\s]+/gi) || []).map(function (u) { try { return new URL(u.replace(/&amp;/g, "&"), f.url).href; } catch (e) { return ""; } }));
+      var count = {}, best = "", bestN = 0;
+      found.forEach(function (u) { if (!u) return; var k = keyOf(u); count[k] = (count[k] || 0) + 1; if (count[k] > bestN) { bestN = count[k]; best = u; } });
+      if (!best) return;
+      var t = meta(html, "og:title") || ((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      var title = f.title.length >= 4 && !/^\+?\s*order$/i.test(f.title) ? f.title : t;
+      add(best, title, f.image || meta(html, "og:image"));
+    }).catch(function () {});
+  };
+
+  var todo = followOrder.map(function (k) { return follow[k]; }).slice(0, 100), done = 0;
+  var next = function () {
+    if (!todo.length) return Promise.resolve();
+    var batch = todo.splice(0, 4);
+    return Promise.all(batch.map(function (f) { return readOne(f).then(function () { done++; say("reading items " + done + " / " + (done + todo.length) + "…"); }); })).then(next);
+  };
+  say(followOrder.length ? "reading items 0 / " + Math.min(followOrder.length, 100) + "…" : "collecting items…");
+  next().then(function () {
+    var items = order.map(function (k) { return map[k]; }).slice(0, 100);
+    if (!items.length && isShop(location.href)) items.push({ url: location.href, title: document.title, image: "" });
+    if (!items.length) {
+      say("no shop items found on this page. Open your order list and try again.");
+      setTimeout(function () { box.remove(); }, 6000);
+      try { w.close(); } catch (e) {}
+      return;
+    }
+    say("found " + items.length + " items. Opening Discindex…");
+    setTimeout(function () { box.remove(); }, 4000);
+    var target = "https://discindex.pages.dev/#/import/" + encodeURIComponent(JSON.stringify({ from: location.hostname, items: items }));
+    if (w && !w.closed) w.location.href = target; else window.open(target, "_blank");
+  });
 }
+
 export const bookmarkletHref = () => "javascript:" + encodeURIComponent("(" + bookmarklet.toString() + ")()");
 
 // Called by the router for #/import/<data>: keep the data, then show the import page.
