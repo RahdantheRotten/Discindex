@@ -231,10 +231,6 @@ function setStatus(html, kind = "info") { $("addStatus").innerHTML = html ? `<di
 
 function openAdd() {
   show("add");
-  if (!store.loadSettings().token) {
-    setStatus('To add CDs, first <a href="#/settings">add your Discogs token in Settings</a>.', "warn");
-    return;
-  }
   if (!$("results").innerHTML && !$("addStatus").innerHTML) setCamera(true);
 }
 

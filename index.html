@@ -127,7 +127,7 @@
         <li>⬇ <b>Import your Discogs collection</b> in one click</li>
       </ul>
       <p class="hint">Your collection is saved privately in your own browser. Album info comes from
-        <a href="https://www.discogs.com" target="_blank" rel="noopener">Discogs</a>; you'll need a free Discogs account and token.</p>
+        <a href="https://www.discogs.com" target="_blank" rel="noopener">Discogs</a>. No account needed to get started.</p>
       <noscript><p class="note">Discindex needs JavaScript turned on.</p></noscript>
       <div class="actions" style="justify-content:center">
         <a class="btn" href="#/add">Add your first CD</a>
@@ -259,10 +259,15 @@
     <div class="panel">
       <div class="box">
         <h3>Discogs connection</h3>
-        <p class="hint">Your personal token is saved only in this browser.
-          Get one at <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener">discogs.com/settings/developers</a>.</p>
-        <label class="lbl">Personal token<input id="setToken" type="password" autocomplete="off"></label>
+        <p class="hint">Discindex looks up albums on Discogs for you, so you don't need anything here to add CDs.
+          To import your Discogs collection, fill in your Discogs username (your collection must be public on Discogs).</p>
         <label class="lbl">Discogs username<input id="setUser" autocomplete="off"></label>
+        <details class="advanced"><summary>Advanced: use your own Discogs token</summary>
+          <p class="hint">Optional. Needed for a private collection, or if Discindex's shared access is busy.
+            Get one at <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener">discogs.com/settings/developers</a>.
+            It's saved only in this browser (and in your account if you're signed in).</p>
+          <label class="lbl">Personal token<input id="setToken" type="password" autocomplete="off"></label>
+        </details>
         <button class="btn" id="saveSettings">Save</button> <span class="hint" id="saveMsg"></span>
       </div>
       <div class="box">

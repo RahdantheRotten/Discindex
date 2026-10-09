@@ -360,3 +360,5 @@ body[data-page="pkgimport"] .fab { display: none; }
 #pkgDupes { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 .pkg-kinds { margin-bottom: 10px; }
+.advanced { margin: 12px 0; }
+.advanced summary { cursor: pointer; color: var(--muted); font-size: 14px; }

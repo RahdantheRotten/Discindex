@@ -2,6 +2,9 @@
 import { loadSettings } from "./store.js";
 
 const API = "https://api.discogs.com";
+// Without a personal token, requests go through Discindex's own helper on Cloudflare (functions/api/discogs),
+// which uses Discindex's Discogs app key. Other addresses (GitHub Pages) call it on discindex.pages.dev.
+const SHARED = (/pages\.dev$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? "" : "https://discindex.pages.dev") + "/api/discogs";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Discogs allows about 60 requests a minute. Space every request out so we never hit the limit,
@@ -15,21 +18,21 @@ async function waitTurn() {
 
 async function call(path, params = {}) {
   const { token } = loadSettings();
-  if (!token) throw new Error("Add your Discogs token in Settings first.");
-  const url = new URL(API + path);
+  const url = new URL(token ? API + path : SHARED + path, location.href);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") url.searchParams.set(k, v);
   for (let attempt = 0; attempt < 4; attempt++) {
     await waitTurn();
     let res;
     try {
-      res = await fetch(url, { headers: { Authorization: `Discogs token=${token}` } });
+      res = await fetch(url, token ? { headers: { Authorization: `Discogs token=${token}` } } : {});
     } catch {
       // When Discogs blocks for going too fast, the browser only reports a network error: wait and retry
-      await sleep(10000 * (attempt + 1));
+      await sleep(3000 * (attempt + 1));
       continue;
     }
-    if (res.status === 429) { await sleep(10000 * (attempt + 1)); continue; }  // too many requests: wait and retry
-    if (res.status === 401) throw new Error("Discogs didn't accept your token. Check it in Settings.");
+    if (res.status === 429 || res.status >= 500) { await sleep(3000 * (attempt + 1)); continue; }  // busy: wait and retry
+    if (res.status === 401) throw new Error("Discogs didn't accept your token. Check it in Settings, or remove it to use Discindex's shared access.");
+    if (res.status === 503 && !token) throw new Error("Discindex isn't connected to Discogs yet. Add your own Discogs token in Settings.");
     if (res.status === 404) throw new Error("Discogs couldn't find that.");
     if (!res.ok) throw new Error(`Discogs error (${res.status}). Try again in a moment.`);
     return res.json();
