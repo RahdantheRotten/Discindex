@@ -108,7 +108,41 @@ function renderCollection() {
   updateCollectionView();
 }
 
+// ---------- duplicates in the collection ----------
+// The same Discogs release more than once. Copies that come from the Discogs collection import (keys "i…")
+// are real second copies the owner has, so those are kept; extra copies added by scanning/searching go.
+function collectionDuplicates() {
+  const groups = new Map();
+  for (const a of items) { if (!groups.has(a.id)) groups.set(a.id, []); groups.get(a.id).push(a); }
+  const extra = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const fromDiscogs = g.filter(a => String(a.key).startsWith("i"));
+    if (fromDiscogs.length) extra.push(...g.filter(a => !String(a.key).startsWith("i")));
+    else extra.push(...[...g].sort((a, b) => (a.added || "").localeCompare(b.added || "")).slice(1));   // keep the oldest
+  }
+  return extra;
+}
+
+function showDuplicatesButton() {
+  const n = collectionDuplicates().length;
+  $("colDupes").hidden = !n;
+  $("colDupes").textContent = `🧹 Remove ${n} duplicate${n === 1 ? "" : "s"}`;
+}
+
+$("colDupes").onclick = () => {
+  const extra = collectionDuplicates();
+  if (!extra.length) return;
+  const list = extra.slice(0, 12).map(a => `• ${a.artist} – ${a.title}`).join("\n") + (extra.length > 12 ? `\n…and ${extra.length - 12} more` : "");
+  if (!confirm(`Remove ${extra.length} duplicate CD${extra.length === 1 ? "" : "s"}? One copy of each stays in your collection.\n\n${list}`)) return;
+  const drop = new Set(extra.map(a => a.key));
+  items = items.filter(a => !drop.has(a.key)); save();
+  toast(`Removed ${extra.length} duplicate${extra.length === 1 ? "" : "s"}`);
+  renderCollection();
+};
+
 function updateCollectionView() {
+  showDuplicatesButton();
   document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === ui.mode));
   document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === ui.layout));
   $("sort").value = ui.sort;
