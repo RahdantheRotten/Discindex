@@ -7,7 +7,9 @@
 const headers = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" };
 
 export function onRequestGet({ env }) {
-  if (env.DISCOGS_KEY && env.DISCOGS_SECRET) return new Response(JSON.stringify({ key: env.DISCOGS_KEY, secret: env.DISCOGS_SECRET }), { headers });
+  // stray spaces or line breaks from copy-pasting would make Discogs refuse the key
+  const key = (env.DISCOGS_KEY || "").trim(), secret = (env.DISCOGS_SECRET || "").trim();
+  if (key && secret) return new Response(JSON.stringify({ key, secret }), { headers });
   if (env.DISCOGS_TOKEN) return new Response(JSON.stringify({ token: env.DISCOGS_TOKEN }), { headers });   // local testing only
   return new Response(JSON.stringify({ message: "Discindex isn't connected to Discogs yet." }), { status: 503, headers });
 }
