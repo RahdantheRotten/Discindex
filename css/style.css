@@ -360,3 +360,15 @@ body[data-page="pkgimport"] .fab { display: none; }
 #pkgDupes { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 .pkg-kinds { margin-bottom: 10px; }
+
+/* value box on the CD page */
+.value-head { display: flex; justify-content: space-between; align-items: center; }
+.value-head h3 { margin: 0; }
+.value-est { font-size: 26px; font-weight: 700; margin: 10px 0 12px; }
+.value-est .hint { display: block; font-size: 13px; font-weight: 400; }
+.value-src { display: grid; grid-template-columns: 80px 1fr; gap: 8px 12px; margin: 0 0 8px; }
+.value-src dt { color: var(--muted); }
+.value-src dd { margin: 0; }
+.value-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.value-list li { margin-bottom: 3px; }
+.value-links { font-size: 13px; color: var(--muted); margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }

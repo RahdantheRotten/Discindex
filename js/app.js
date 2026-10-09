@@ -4,6 +4,7 @@ import * as discogs from "./discogs.js";
 import { startScanner, stopScanner } from "./scanner.js";
 import * as cloud from "./cloud.js";
 import * as packages from "./packages.js";
+import * as value from "./value.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -198,7 +199,66 @@ function openAlbum(key) {
       : `<tr><td>${esc(t.pos)}</td><td>${esc(t.title)}${t.artist ? ` <span class="hint">· ${esc(t.artist)}</span>` : ""}</td><td>${esc(t.dur)}</td></tr>`).join("")
     + (n ? `<tr class="total"><td></td><td>Total length · ${n} tracks</td><td>${fmtLen(a.secs) || "–"}</td></tr>` : "");
   $("alLink").href = a.url;
+  renderValue(a);
+  if (!a.value || a.value.currency !== myCurrency()) checkValue(a);
   show("album");
+}
+
+// ---------- value (what the CD is worth) ----------
+
+// Kevin sees Danish kroner, everyone else US dollars
+const myCurrency = () => packages.isOwner(user) ? "DKK" : "USD";
+const checking = new Set();
+
+function renderValue(a) {
+  const box = $("alValue"), cur = myCurrency(), v = a.value?.currency === cur ? a.value : null;
+  const fmt = n => value.money(n, cur);
+  const L = value.links(a, cur);
+  const busy = checking.has(a.key);
+  let body;
+  if (busy && !v) body = `<p class="hint"><span class="spinner"></span>Checking Discogs and DBA…</p>`;
+  else if (!v) body = `<p class="hint">No value checked yet.</p>`;
+  else {
+    const d = v.sources.discogs || {}, b = v.sources.dba || {};
+    const discogsText = d.error ? esc(d.error) : [
+      d.suggested != null ? `<b>${fmt(d.suggested)}</b> sales-based (near mint)` : "",
+      d.lowest != null ? `cheapest now ${fmt(d.lowest)} (${d.forSale} for sale)` : d.forSale === 0 ? "none for sale right now" : "",
+    ].filter(Boolean).join(" · ") || "no price data";
+    const dbaText = b.error ? esc(b.error) : b.count ? `<b>${fmt(b.median)}</b> typical asking price (${b.count} listing${b.count === 1 ? "" : "s"})` : "no listings right now";
+    const dbaList = (b.listings || []).map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a> · ${value.money(l.price, "DKK")}${l.place ? ` · ${esc(l.place)}` : ""}</li>`).join("");
+    body = `
+      <div class="value-est">${v.estimate != null ? `≈ ${fmt(v.estimate)}` : "No price found"}
+        <span class="hint">estimated · checked ${new Date(v.at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span></div>
+      <dl class="value-src">
+        <dt>Discogs</dt><dd>${discogsText}</dd>
+        <dt>DBA</dt><dd>${dbaText}${dbaList ? `<ul class="value-list">${dbaList}</ul>` : ""}</dd>
+      </dl>
+      ${d.needsSellerSettings && packages.isOwner(user) ? `<p class="hint">Tip: fill in your <a href="https://www.discogs.com/settings/seller" target="_blank" rel="noopener">Discogs seller settings</a> once (you don't have to sell anything) to get sales-based prices.</p>` : ""}`;
+  }
+  box.innerHTML = `<div class="value-head"><h3>💰 Value</h3>
+      <button class="btn ghost small" id="valueUpdate"${busy ? " disabled" : ""}>${busy ? '<span class="spinner"></span>Checking…' : "↻ Update"}</button></div>
+    ${body}
+    <p class="value-links">Check yourself:
+      <a href="${L.ebaySold}" target="_blank" rel="noopener">eBay sold ↗</a>
+      <a href="${L.resellbot}" target="_blank" rel="noopener">Resellbot ↗</a>
+      <a href="${L.vinted}" target="_blank" rel="noopener">Vinted ↗</a>
+      <a href="${L.dba}" target="_blank" rel="noopener">DBA ↗</a>
+      <a href="${L.discogs}" target="_blank" rel="noopener">Discogs market ↗</a></p>`;
+  $("valueUpdate").onclick = () => checkValue(a);
+}
+
+async function checkValue(a) {
+  if (checking.has(a.key) || !store.loadSettings().token) { if (!store.loadSettings().token) renderValue(a); return; }
+  checking.add(a.key);
+  if (currentKey === a.key) renderValue(a);
+  try {
+    const v = await value.check(a, myCurrency());
+    const item = items.find(x => x.key === a.key);
+    if (item) { item.value = v; save(); }
+  } catch (e) { toast("Couldn't check the value: " + e.message); }
+  checking.delete(a.key);
+  const fresh = items.find(x => x.key === a.key);
+  if (fresh && currentKey === a.key && $("page-album").classList.contains("on")) renderValue(fresh);
 }
 
 $("alRemove").onclick = () => {
