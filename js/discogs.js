@@ -13,7 +13,7 @@ async function authHeader() {
   const { token } = loadSettings();
   if (token) return `Discogs token=${token}`;
   if (!appAuth) {
-    const app = await fetch(APP_URL).then(r => r.ok ? r.json() : null).catch(() => null);
+    const app = await fetch(APP_URL, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
     if (!app) throw new Error("Couldn't connect to Discogs. Check your internet connection, or add your own Discogs token in Settings.");
     appAuth = app.token ? `Discogs token=${app.token}` : `Discogs key=${app.key}, secret=${app.secret}`;
   }
@@ -30,7 +30,7 @@ async function waitTurn() {
 }
 
 async function call(path, params = {}) {
-  const auth = await authHeader();
+  let auth = await authHeader();
   const url = new URL(API + path);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") url.searchParams.set(k, v);
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -44,6 +44,8 @@ async function call(path, params = {}) {
       continue;
     }
     if (res.status === 429 || res.status >= 500) { await sleep(3000 * (attempt + 1)); continue; }  // busy: wait and retry
+    // the shared app key may have been replaced: fetch it again once and retry
+    if (res.status === 401 && !loadSettings().token && appAuth && attempt === 0) { appAuth = null; auth = await authHeader(); continue; }
     if (res.status === 401) throw new Error(loadSettings().token
       ? "Discogs didn't accept your token. Check it in Settings, or remove it to use Discindex's shared access."
       : "Discogs didn't accept Discindex's access right now. Try again later, or add your own Discogs token in Settings.");

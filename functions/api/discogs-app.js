@@ -4,7 +4,7 @@
 // The key only gives access to Discogs' public music data, not to anyone's account. If it's ever misused,
 // make a new one on Discogs and replace the secrets in Cloudflare; no code change is needed.
 
-const headers = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" };
+const headers = { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json", "Cache-Control": "no-store" };
 
 export function onRequestGet({ env }) {
   // stray spaces or line breaks from copy-pasting would make Discogs refuse the key
