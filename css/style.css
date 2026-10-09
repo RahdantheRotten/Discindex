@@ -364,3 +364,10 @@ body[data-page="pkgimport"] .fab { display: none; }
 .advanced summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 
 .dupes-btn { margin: -6px 0 16px; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* feedback window */
+#fbForm select, #fbForm textarea { display: block; width: 100%; margin-top: 4px; padding: 9px 12px; border: 1px solid var(--line);
+  border-radius: 8px; font: inherit; font-weight: 400; background: var(--card); resize: vertical; }
+.fb-bot { position: absolute; left: -9999px; }
+#fbMsg:empty { display: none; }
+@media (max-width: 700px) { #fbForm select, #fbForm textarea { font-size: 16px; } }

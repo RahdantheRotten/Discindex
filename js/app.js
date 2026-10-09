@@ -4,6 +4,7 @@ import * as discogs from "./discogs.js";
 import { startScanner, stopScanner } from "./scanner.js";
 import * as cloud from "./cloud.js";
 import * as packages from "./packages.js";
+import * as feedback from "./feedback.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -617,6 +618,7 @@ $("menuSignOut").onclick = async () => {
 };
 
 packages.init({ show, toast, esc, addRelease, lookup });
+feedback.init({ toast, getUser: () => user });
 showAccount();
 cloud.onUserChange(u => u ? signedIn(u) : signedOut()).catch(e => console.warn("Sign-in unavailable", e));
 
