@@ -30,11 +30,8 @@ async function call(path, params = {}) {
     }
     if (res.status === 429) { await sleep(10000 * (attempt + 1)); continue; }  // too many requests: wait and retry
     if (res.status === 401) throw new Error("Discogs didn't accept your token. Check it in Settings.");
-    if (res.status === 404) throw new Error(await res.json().then(j => /seller settings/i.test(j.message) ? j.message : "").catch(() => "") || "Discogs couldn't find that.");
-    if (!res.ok) {
-      const msg = await res.json().then(j => j.message).catch(() => "");
-      throw new Error(msg || `Discogs error (${res.status}). Try again in a moment.`);
-    }
+    if (res.status === 404) throw new Error("Discogs couldn't find that.");
+    if (!res.ok) throw new Error(`Discogs error (${res.status}). Try again in a moment.`);
     return res.json();
   }
   throw new Error("Discogs is busy right now. Try again in a minute.");
@@ -50,12 +47,6 @@ export const searchText = q =>
 
 export const searchCatno = catno =>
   call("/database/search", { catno, type: "release", per_page: 50 }).then(r => r.results);
-
-// Marketplace: how many copies are for sale and the cheapest price, in the given currency (e.g. "DKK")
-export const marketStats = (id, currency) => call(`/marketplace/stats/${id}`, { curr_abbr: currency });
-
-// Discogs' suggested prices per condition, based on sales. Only works once "seller settings" are filled in on Discogs.
-export const priceSuggestions = id => call(`/marketplace/price_suggestions/${id}`);
 
 export const masterVersions = id =>
   call(`/masters/${id}/versions`, { format: "CD", per_page: 100 }).then(r => r.versions);
