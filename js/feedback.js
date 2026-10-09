@@ -1,7 +1,7 @@
 // "Send feedback": visitors can report problems or suggest things. Messages are emailed to the owner
 // through Web3Forms (https://web3forms.com). The access key below only allows sending messages to the
 // owner's inbox; the owner's email address itself is kept at Web3Forms and never appears on the site.
-export const WEB3FORMS_KEY = "";   // ← the access key from Web3Forms
+export const WEB3FORMS_KEY = "c24e3b45-d3c6-4f2f-9f23-571038ec20f8";   // ← the access key from Web3Forms
 
 const $ = id => document.getElementById(id);
 let h = null;   // helpers from app.js: toast, getUser
