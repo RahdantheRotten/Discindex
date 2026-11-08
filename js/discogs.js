@@ -61,14 +61,14 @@ export const getRelease = id => call(`/releases/${id}`);
 export const searchBarcode = code =>
   call("/database/search", { barcode: code, type: "release", per_page: 50 }).then(r => r.results);
 
-export const searchText = q =>
-  call("/database/search", { q, type: "release", format: "CD", per_page: 50 }).then(r => r.results);
+export const searchText = (q, format = "CD") =>
+  call("/database/search", { q, type: "release", format, per_page: 50 }).then(r => r.results);
 
 export const searchCatno = catno =>
   call("/database/search", { catno, type: "release", per_page: 50 }).then(r => r.results);
 
-export const masterVersions = id =>
-  call(`/masters/${id}/versions`, { format: "CD", per_page: 100 }).then(r => r.versions);
+export const masterVersions = (id, format = "CD") =>
+  call(`/masters/${id}/versions`, { format, per_page: 100 }).then(r => r.versions);
 
 export const getMaster = id => call(`/masters/${id}`);
 

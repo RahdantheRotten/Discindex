@@ -27,9 +27,14 @@
 
 <header>
   <a class="logo" href="#/">●&nbsp;Disc<span>index</span></a>
-  <a class="nav-tab owner-only" id="packagesTab" href="#/packages" hidden>📦 Packages</a>
+  <nav class="main-tabs">
+    <button class="nav-tab" data-media="cd">💿 CDs</button>
+    <button class="nav-tab" data-media="vinyl">🎵 Vinyl</button>
+    <button class="nav-tab" data-media="cassette">📼 Cassettes</button>
+    <a class="nav-tab owner-only" id="packagesTab" href="#/packages" hidden>📦 Packages</a>
+  </nav>
   <input class="search" id="globalSearch" placeholder="Search your collection…" autocomplete="off">
-  <a class="btn add-top" href="#/add">+ Add CD</a>
+  <a class="btn add-top" id="addTop" href="#/add">+ Add CD</a>
   <button class="btn ghost" id="signInBtn" hidden>Sign in</button>
   <button class="avatar" id="avatarBtn" hidden title="Account"></button>
   <button class="icon-btn" id="gear" title="Settings">⚙</button>
@@ -109,6 +114,7 @@
       </div>
     </div>
     <button class="btn ghost small dupes-btn" id="colDupes" hidden></button>
+    <p class="shelf-empty" id="shelfEmpty" hidden></p>
     <div class="grid" id="grid"></div>
     <table class="list" id="list" hidden>
       <thead><tr><th></th>
@@ -180,7 +186,7 @@
   <!-- Add CD -->
   <section class="page" id="page-add">
     <a class="back" href="#/">← Back to collection</a>
-    <h1 style="margin-bottom:18px">Add a CD</h1>
+    <h1 style="margin-bottom:18px" id="addTitle">Add a CD</h1>
     <div class="panel">
       <form class="addbar" id="addForm">
         <button type="button" class="ibtn" id="camBtn" title="Scan barcode with camera">📷</button>
@@ -203,7 +209,7 @@
   <!-- Choose version -->
   <section class="page" id="page-versions">
     <a class="back" id="versBack" href="#/add">← Back</a>
-    <h1>Which one is yours?</h1>
+    <h1 id="versTitle">Which one is yours?</h1>
     <p class="artist" style="font-size:16px" id="versSub"></p>
     <div class="versions" id="vers"></div>
     <button class="btn" id="versAdd" disabled>Add to collection</button>

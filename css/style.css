@@ -267,8 +267,8 @@ h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: -0.5px; }
 }
 
 /* packages (owner only): same look as the collection */
-.nav-tab { color: var(--text); text-decoration: none; font-weight: 600; padding: 7px 12px; border-radius: 8px; }
-.nav-tab:hover, body[data-page="packages"] .nav-tab { background: var(--accent-soft); color: var(--accent); }
+.nav-tab { background: none; border: 0; font: inherit; cursor: pointer; color: var(--text); text-decoration: none; font-weight: 600; padding: 7px 12px; border-radius: 8px; }
+.nav-tab:hover, body[data-page="packages"] #packagesTab, .nav-tab.on { background: var(--accent-soft); color: var(--accent); }
 .pkg-h1 { font-size: 24px; margin: 0; }
 .pkg-filter { width: fit-content; max-width: 100%; overflow-x: auto; margin-bottom: 18px; scrollbar-width: none; }
 .pkg-filter::-webkit-scrollbar { display: none; }
@@ -371,3 +371,18 @@ body[data-page="pkgimport"] .fab { display: none; }
 .fb-bot { position: absolute; left: -9999px; }
 #fbMsg:empty { display: none; }
 @media (max-width: 700px) { #fbForm select, #fbForm textarea { font-size: 16px; } }
+
+/* CDs / Vinyl / Packages tabs */
+.main-tabs { display: flex; gap: 4px; align-items: center; }
+.shelf-empty { color: var(--muted); padding: 40px 0; text-align: center; }
+@media (max-width: 700px) {
+  .main-tabs { order: 4; flex-basis: 100%; }
+  .main-tabs .nav-tab { flex: 1 1 auto; text-align: center; padding: 8px 2px; font-size: 14px; white-space: nowrap; }
+}
+
+/* CD or vinyl step before the versions */
+.fmt-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 560px; }
+.fmt-btn { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 22px 12px; font: inherit; font-weight: 700; font-size: 18px; cursor: pointer; color: var(--text); }
+.fmt-btn span { display: block; font-size: 40px; margin-bottom: 6px; }
+.fmt-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+#fmtMsg:empty { display: none; }

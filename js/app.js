@@ -12,7 +12,21 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let items = store.loadCollection();
 let settings = store.loadSettings();
-const ui = Object.assign({ mode: "albums", layout: "grid", sort: "added", genre: "" }, settings.ui);
+const ui = Object.assign({ media: "cd", mode: "albums", layout: "grid", sort: "added", genre: "" }, settings.ui);
+
+// Three shelves, by what Discogs calls the format. A box with several formats goes on the first that fits (CD, vinyl,
+// cassette), and everything else (DVD, files) stays with the CDs.
+const MEDIA = {
+  cd: { format: "CD", add: "+ Add CD", title: "Add a CD", one: "CD", many: "CDs", first: "Add your first CD", none: "No CDs yet." },
+  vinyl: { format: "Vinyl", add: "+ Add vinyl", title: "Add vinyl", one: "record", many: "records", first: "Add your first record", none: "No vinyl yet." },
+  cassette: { format: "Cassette", add: "+ Add cassette", title: "Add a cassette", one: "cassette", many: "cassettes", first: "Add your first cassette", none: "No cassettes yet." },
+};
+const mediaOf = a => {
+  const f = a.format || "";
+  return /\bCD/.test(f) ? "cd" : /vinyl/i.test(f) ? "vinyl" : /cassette/i.test(f) ? "cassette" : "cd";
+};
+const shelf = () => items.filter(a => mediaOf(a) === ui.media);
+const discFormat = media => MEDIA[media].format;
 
 function save() { store.saveCollection(items); syncUp(); }
 function saveUi() { settings = store.loadSettings(); settings.ui = ui; store.saveSettings(settings); }
@@ -33,6 +47,7 @@ function toast(msg) {
 
 function show(page) {
   document.body.dataset.page = page;
+  showMediaTabs();
   document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
   if (page !== "add") stopScanner();
   window.scrollTo(0, 0);
@@ -47,11 +62,25 @@ function route() {
   if (page === "settings") return openSettings();
   if (page === "packages") return packages.open();
   if (page === "import") return arg ? packages.startImport(location.hash.slice("#/import/".length)) : packages.openImport();
-  if (!items.length) return show("empty");
+  if (!items.length && ui.media === "cd") return show("empty");
   renderCollection();
   show("collection");
 }
 window.addEventListener("hashchange", route);
+
+// ---------- CDs / vinyl tabs ----------
+
+function showMediaTabs() {
+  const page = document.body.dataset.page;
+  document.querySelectorAll("[data-media]").forEach(b => b.classList.toggle("on", b.dataset.media === ui.media && !/packages|pkgimport/.test(page)));
+  $("addTop").textContent = MEDIA[ui.media].add;
+  $("addTitle").textContent = MEDIA[ui.media].title;
+}
+
+document.querySelectorAll("[data-media]").forEach(b => b.onclick = () => {
+  ui.media = b.dataset.media; ui.genre = ""; saveUi();
+  if (location.hash === "#/" || location.hash === "") route(); else location.hash = "#/";
+});
 
 // ---------- collection ----------
 
@@ -66,7 +95,7 @@ const sorters = {
 function renderGenreFilter() {
   const count = (field) => {
     const m = new Map();
-    for (const a of items) for (const x of new Set(a[field] || [])) m.set(x, (m.get(x) || 0) + 1);
+    for (const a of shelf()) for (const x of new Set(a[field] || [])) m.set(x, (m.get(x) || 0) + 1);
     return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   };
   const opts = (list, prefix) => list.map(([name, n]) =>
@@ -93,7 +122,9 @@ let itemsByKey = new Map();
 function renderCollection() {
   itemsByKey = new Map(items.map(a => [a.key, a]));
   renderGenreFilter();
-  const sorted = [...items].sort(sorters[ui.sort]);
+  const sorted = shelf().sort(sorters[ui.sort]);
+  $("shelfEmpty").hidden = sorted.length > 0;
+  $("shelfEmpty").innerHTML = `${MEDIA[ui.media].none} <a href="#/add">${MEDIA[ui.media].first}</a>`;
   $("grid").innerHTML = sorted.map(a => `<div class="item" data-key="${esc(a.key)}" data-text="${esc((a.title + " " + a.artist).toLowerCase())}">
       <img class="cover" loading="lazy" src="${esc(a.cover || a.thumb)}" alt="">
       <div class="t">${esc(a.title)}</div><div class="a">${esc(a.artist)}${a.year ? " · " + a.year : ""}</div></div>`).join("");
@@ -114,7 +145,7 @@ function renderCollection() {
 // are real second copies the owner has, so those are kept; extra copies added by scanning/searching go.
 function collectionDuplicates() {
   const groups = new Map();
-  for (const a of items) { if (!groups.has(a.id)) groups.set(a.id, []); groups.get(a.id).push(a); }
+  for (const a of shelf()) { if (!groups.has(a.id)) groups.set(a.id, []); groups.get(a.id).push(a); }
   const extra = [];
   for (const g of groups.values()) {
     if (g.length < 2) continue;
@@ -190,12 +221,13 @@ function applyFilters() {
   }
   const filtered = shown !== total ? `${shown} of ` : "";
   if (ui.mode === "songs") {
-    const all = items.flatMap(a => a.tracks.filter(t => t.type === "track"));
+    const all = shelf().flatMap(a => a.tracks.filter(t => t.type === "track"));
     const sum = [...$("songs").tBodies[0].rows].filter(tr => !tr.hidden && !tr.classList.contains("nomatch"))
       .reduce((n, tr) => n + secs(tr.cells[5].textContent), 0);
     $("count").textContent = `${filtered}${all.length} songs · ${Math.floor(sum / 3600)} h ${Math.floor(sum % 3600 / 60)} min`;
   } else {
-    $("count").textContent = `${filtered}${items.length} CDs`;
+    const n = shelf().length;
+    $("count").textContent = `${filtered}${n} ${n === 1 ? MEDIA[ui.media].one : MEDIA[ui.media].many}`;
   }
 }
 
@@ -249,7 +281,7 @@ $("alChange").onclick = async () => {
   if (!a) return;
   busy($("alChange"), true);
   try {
-    const list = a.master_id ? await discogs.masterVersions(a.master_id) : await discogs.searchText(`${a.artist} ${a.title}`);
+    const list = a.master_id ? await discogs.masterVersions(a.master_id, discFormat(mediaOf(a))) : await discogs.searchText(`${a.artist} ${a.title}`, discFormat(mediaOf(a)));
     showVersions({ title: a.title, artist: a.artist, versions: list.map(discogs.toVersion), replaceKey: a.key, back: "#/album/" + encodeURIComponent(a.key) });
   } catch (e) { toast(e.message); }
   busy($("alChange"), false);
@@ -301,9 +333,9 @@ async function lookup(q) {
       return addRelease(link.id);
     }
     if (link?.kind === "master") {
-      const [m, v] = await Promise.all([discogs.getMaster(link.id), discogs.masterVersions(link.id)]);
+      const m = await discogs.getMaster(link.id);
       setStatus("");
-      return showVersions({ title: m.title, artist: discogs.artistNames(m.artists), versions: v.map(discogs.toVersion), back: "#/add" });
+      return showFormatChoice({ title: m.title, artist: discogs.artistNames(m.artists), masterId: link.id });
     }
     if (/^\d{8,14}$/.test(digits)) {
       const res = await discogs.searchBarcode(digits);
@@ -313,7 +345,7 @@ async function lookup(q) {
       const [artist, title] = splitTitle(res[0].title);
       return showVersions({ title, artist, versions: res.map(discogs.toVersion), back: "#/add" });
     }
-    const res = await discogs.searchText(q);
+    const res = (await discogs.searchText(q, "")).filter(r => (r.format || []).some(f => /^(CD|CDr|Vinyl|Cassette)$/i.test(f)));
     if (!res.length) return setStatus(`Nothing found for "<b>${esc(q)}</b>". Try fewer words, or just the album name.`, "warn");
     setStatus("");
     showResults(q, res);
@@ -336,19 +368,40 @@ function showResults(q, res) {
   $("results").innerHTML = `<div class="hint" style="margin:0 0 6px">Results for "${esc(q)}"</div>` + arr.map((g, i) => {
     const [artist, title] = splitTitle(g.title);
     return `<div class="res" data-group="${i}"><img loading="lazy" src="${esc(g.thumb || g.cover_image)}" alt="">
-      <div><b>${esc(title)}</b><div class="m">${esc(artist)}${g.year ? " · " + esc(g.year) : ""}${g.master_id ? " · see all CD versions" : ""}</div></div></div>`;
+      <div><b>${esc(title)}</b><div class="m">${esc(artist)}${g.year ? " · " + esc(g.year) : ""}${g.master_id ? " · choose format" : ""}</div></div></div>`;
   }).join("");
   $("results").querySelectorAll("[data-group]").forEach(el => el.onclick = async () => {
     const g = arr[+el.dataset.group];
     const [artist, title] = splitTitle(g.title);
     if (!g.master_id && g.list.length === 1) return addRelease(g.id);
-    setStatus('<span class="spinner"></span>Getting versions…');
-    try {
-      const versions = g.master_id ? await discogs.masterVersions(g.master_id) : g.list;
-      setStatus("");
-      showVersions({ title, artist, versions: versions.map(discogs.toVersion), back: "#/add" });
-    } catch (e) { setStatus(esc(e.message), "warn"); }
+    if (g.master_id) return showFormatChoice({ title, artist, masterId: g.master_id });
+    showVersions({ title, artist, versions: g.list.map(discogs.toVersion), back: "#/add" });
   });
+}
+
+// The step before the versions: which format do you have? The versions are then only that format.
+function showFormatChoice({ title, artist, masterId }) {
+  versionState = { title, artist, versions: [] }; chosen = null;
+  $("versTitle").textContent = "CD, vinyl or cassette?";
+  $("versSub").innerHTML = `Which format do you have of <b>${esc(title)}</b>${artist ? " by " + esc(artist) : ""}?`;
+  $("versBack").href = "#/add";
+  $("versAdd").hidden = true;
+  $("vers").innerHTML = `<div class="fmt-choice">
+      <button class="fmt-btn" data-fmt="CD"><span>💿</span>CD</button>
+      <button class="fmt-btn" data-fmt="Vinyl"><span>🎵</span>Vinyl</button>
+      <button class="fmt-btn" data-fmt="Cassette"><span>📼</span>Cassette</button>
+    </div><p class="hint" id="fmtMsg"></p>`;
+  $("vers").querySelectorAll("[data-fmt]").forEach(b => b.onclick = async () => {
+    const fmt = b.dataset.fmt;
+    $("fmtMsg").innerHTML = '<span class="spinner"></span>Getting versions…';
+    try {
+      const v = await discogs.masterVersions(masterId, fmt);
+      if (!v.length) { $("fmtMsg").textContent = `Discogs has no ${fmt === "CD" ? "CD" : fmt.toLowerCase()} version of this album.`; return; }
+      showVersions({ title, artist, versions: v.map(discogs.toVersion), back: "#/add" });
+    } catch (e) { $("fmtMsg").textContent = e.message; }
+  });
+  location.hash = "#/versions";
+  show("versions");
 }
 
 // quiet: add without opening the album page or showing the "already have it" note (used for bundles)
@@ -373,6 +426,7 @@ async function addRelease(id, { replaceKey = null, force = false, quiet = false 
     } else {
       const item = discogs.releaseToItem(r);
       items.push(item);
+      if (!quiet) { ui.media = mediaOf(item); saveUi(); }
       toast(`Added "${item.title}" to your collection`);
       replaceKey = item.key;
     }
@@ -390,6 +444,8 @@ async function addRelease(id, { replaceKey = null, force = false, quiet = false 
 let versionState = null, chosen = null;
 function showVersions(state) {
   versionState = state; chosen = null;
+  $("versTitle").textContent = "Which one is yours?";
+  $("versAdd").hidden = false;
   const owned = new Set(items.map(x => x.id));
   $("versSub").innerHTML = `We found ${state.versions.length} version${state.versions.length === 1 ? "" : "s"} of <b>${esc(state.title)}</b>${state.artist ? " by " + esc(state.artist) : ""}.`;
   $("versBack").href = state.back || "#/add";
