@@ -511,7 +511,7 @@ function bookmarklet() {
   // otherwise the visible part of the page. Hidden lists (other parcels) are skipped.
   var shown = function (el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
   var popups = [].slice.call(document.querySelectorAll("[role=dialog], [aria-modal=true], .modal, .popup, [class*=modal], [class*=Modal], [class*=popup], [class*=Popup]"))
-    .filter(function (el) { return shown(el) && el.querySelector("a[href]"); });
+    .filter(function (el) { return shown(el) && [].some.call(el.querySelectorAll("a[href]"), function (a) { return isShop(a.href); }); });
   var area = popups.length ? popups[popups.length - 1] : document;
   var links = [].slice.call(area.querySelectorAll("a[href]")).filter(shown);
   var follow = {}, followOrder = [];
