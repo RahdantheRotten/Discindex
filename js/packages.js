@@ -507,8 +507,15 @@ function bookmarklet() {
 
   // 1. direct links to shop items
   // 2. links to this site's own item/order pages (e.g. ZenMarket's order list): open those to find the original item
+  // Only read what the user is looking at: an open popup (e.g. ZenMarket's "Parcel content") if there is one,
+  // otherwise the visible part of the page. Hidden lists (other parcels) are skipped.
+  var shown = function (el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
+  var popups = [].slice.call(document.querySelectorAll("[role=dialog], [aria-modal=true], .modal, .popup, [class*=modal], [class*=Modal], [class*=popup], [class*=Popup]"))
+    .filter(function (el) { return shown(el) && el.querySelector("a[href]"); });
+  var area = popups.length ? popups[popups.length - 1] : document;
+  var links = [].slice.call(area.querySelectorAll("a[href]")).filter(shown);
   var follow = {}, followOrder = [];
-  document.querySelectorAll("a[href]").forEach(function (a) {
+  links.forEach(function (a) {
     var h = a.href.split("#")[0];
     if (/^javascript:/i.test(h)) return;
     if (isShop(h)) return add(h, textOf(a), imgOf(a));
@@ -599,6 +606,7 @@ function bookmarklet() {
     });
   };
 
+  if (order.length) followOrder = [];
   var todo = followOrder.map(function (k) { return follow[k]; }).slice(0, 100), done = 0;
   var total = function () { return done + todo.length; };
   var next = function (fn) {
@@ -606,6 +614,7 @@ function bookmarklet() {
     var batch = todo.splice(0, 4);
     return Promise.all(batch.map(function (f) { return fn(f).then(function () { done++; say("reading items " + done + " / " + total() + "…"); }); })).then(function () { return next(fn); });
   };
+  if (order.length) followOrder = [];
   say(followOrder.length ? "reading items 0 / " + Math.min(followOrder.length, 100) + "…" : "collecting items…");
   next(readOne).then(function () {
     // one product page at a time in the helper tab
